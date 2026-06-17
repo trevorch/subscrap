@@ -1,0 +1,63 @@
+name: sub2搜集
+
+on:
+  # 1. 允许手动触发（不再需要日期输入，直接抓取最新）
+  workflow_dispatch: 
+
+  # 2. 每3小时自动定时触发
+  schedule:
+    - cron: '0 */1 * * *' 
+env:
+  TZ: Asia/Shanghai
+  
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write 
+
+    steps:
+      - name: 🛎️ Checkout repository
+        uses: actions/checkout@v6 
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6 
+        with:
+          python-version: '3.11'
+
+      - name: 🕸️ Run collector script
+        env:
+          SUB2_HOME: ${{ vars.SUB2_HOME }}
+        run: |
+          pip install requests beautifulsoup4
+          python sub2.py
+
+      - name: 📦 Push to Target Repository
+        run: |
+          # 1. 配置 Git 基础信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 2. 下载目标仓库
+          git clone https://${{ secrets.TARGET_REPO_TOKEN }}@github.com/trevorch/freesub.git
+          cd freesub
+          
+          # 3. 检查文件是否已存在且内容相同，若不同则更新并提交
+          if [ -f "../sub2.txt" ]; then
+            # 比较新旧文件内容
+            if ! cmp -s "sub2.txt" "../sub2.txt"; then
+              echo "发现新节点内容，正在更新文件..."
+              cp ../sub2.txt ./
+              
+              # 4. 提交更改并推送到目标仓库
+              git add sub2.txt
+              git commit -m "🎉 自动更新 Free Nodes: $(date '+%Y-%m-%d %H:%M:%S')"
+              git push origin main 
+            else
+              echo "节点内容无变化，跳过提交。"
+            fi
+          else
+            echo "警告：未生成 sub2.txt 文件！"
+            exit 1
+          fi

@@ -83,12 +83,12 @@ def fetch_clash_nodes():
                 if content:
                     f.write(content + "\n")  
                     success_count += 1
-                    print(f"   ✔️ 成功写入: {link}")
+                    print(f"   ✔️ 成功写入")
                 else:
-                    print(f"   ⚠️ 内容为空: {link}")
+                    print(f"   ⚠️ 内容为空")
                     
             except Exception as e:
-                print(f"   ❌ 抓取失败 ({link}): {e}")
+                print(f"   ❌ 抓取失败: {e}")
                 
     print(f"\n🎉 抓取完成！共成功处理 {success_count}/{len(v2ray_links)} 个订阅源，结果已保存至 sub2.txt")
 

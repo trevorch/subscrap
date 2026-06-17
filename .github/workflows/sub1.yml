@@ -1,0 +1,131 @@
+name: sub1搜集
+
+on:
+  schedule:
+    - cron: '0 */2 * * *' 
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "并发 v2ray 进程数"
+        default: "500"
+      timeout:
+        description: "单节点超时秒数"
+        default: "5"
+
+permissions:
+  contents: write
+env:
+  TZ: Asia/Shanghai 
+  
+jobs:
+  check-and-commit:
+    runs-on: ubuntu-latest
+    #timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # ── 安装 v2ray-core（自动取最新版） ─────────────────────────────────────
+      - name: Install v2ray-core
+        run: |
+          set -e
+          VER=$(curl -fsSL https://api.github.com/repos/v2fly/v2ray-core/releases/latest \
+                | grep '"tag_name"' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/')
+          echo "Installing v2ray v${VER}"
+          curl -fsSL -o /tmp/v2ray.zip \
+            "https://github.com/v2fly/v2ray-core/releases/download/v${VER}/v2ray-linux-64.zip"
+          mkdir -p /tmp/v2ray-bin
+          unzip -q /tmp/v2ray.zip -d /tmp/v2ray-bin
+          sudo install -m755 /tmp/v2ray-bin/v2ray /usr/local/bin/v2ray
+          v2ray version
+          echo "V2RAY=/usr/local/bin/v2ray" >> "$GITHUB_ENV"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+          
+      # ── 同步上游节点文件 ──────────────────────────────────────────────────────
+      - name: Sync upstream
+        env:
+          SUB1_REPO: ${{ vars.SUB1_REPO }}
+        run: |
+          git clone --depth=1 \
+            $SUB1_REPO _upstream
+          mkdir -p separated-protocols-chunks
+          rm -rf separated-protocols-chunks/vless
+          cp -r _upstream/separated-protocols-chunks/vless \
+                separated-protocols-chunks/vless
+          echo "FILE_COUNT=$(find separated-protocols-chunks/vless -type f | wc -l)" \
+            >> "$GITHUB_ENV"
+
+      # ── 运行检测 ──────────────────────────────────────────────────────────────
+      - name: Check if the node is alive
+        run: |
+          python sub1.py \
+            --dir separated-protocols-chunks/vless \
+            --out sub1.txt \
+            --v2ray "$V2RAY" \
+            --workers "${{ github.event.inputs.workers || '500' }}" \
+            --timeout "${{ github.event.inputs.timeout || '5' }}"
+
+      # ── Job Summary ───────────────────────────────────────────────────────────
+      - name: Summary
+        if: always()
+        run: |
+          NODE_COUNT=$(grep -c "^vless://" sub1.txt 2>/dev/null || echo 0)
+          {
+            echo "## VLESS Check — $(date -u +'%Y-%m-%d %H:%M UTC')"
+            echo "| 订阅文件数 | 有效节点数 |"
+            echo "|-----------|-----------|"
+            echo "| ${FILE_COUNT} | **${NODE_COUNT}** |"
+            echo ""
+            echo '```'
+            head -200 sub1.txt 2>/dev/null || echo "（无）"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── 上传 Artifact ─────────────────────────────────────────────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: vless-${{ github.run_number }}
+          path: sub1.txt
+          retention-days: 7
+
+      - name: 📦 Push to Target Repository
+        run: |
+          # 1. 配置 Git 基础信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 2. 下载目标仓库
+          git clone https://${{ secrets.TARGET_REPO_TOKEN }}@github.com/trevorch/freesub.git
+          cd freesub
+          
+          # 3. 检查文件是否已存在且内容相同，若不同则更新并提交
+          if [ -f "../sub1.txt" ]; then
+            # 比较新旧文件内容
+            if ! cmp -s "sub1.txt" "../sub1.txt"; then
+              echo "发现新节点内容，正在更新文件..."
+              cp ../sub1.txt ./
+              
+              # 4. 提交更改并推送到目标仓库
+              git add sub1.txt
+              git commit -m "🎉 自动更新 Free Nodes: $(date '+%Y-%m-%d %H:%M:%S')"
+              git push origin main 
+            else
+              echo "节点内容无变化，跳过提交。"
+            fi
+          else
+            echo "警告：未生成 sub1.txt 文件！"
+            exit 1
+          fi

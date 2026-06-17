@@ -37,7 +37,7 @@ jobs:
           SUB0_HOME: ${{ vars.SUB0_HOME }}
           SUB0_HOST: ${{ vars.SUB0_HOST }}
         run: |
-          python SUB0.py
+          python sub0.py
 
       - name: 📦 Push to Target Repository
         run: |

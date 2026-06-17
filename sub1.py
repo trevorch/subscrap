@@ -35,8 +35,8 @@ from pathlib import Path
 _ROOT = Path(__file__).parent
 sys.path.insert(0, str(_ROOT))
 
-from sub1.parser import load_dir, Node
-from sub1.v2ray import to_json, PROBE_HOST, PROBE_PORT
+from sub1pkg.parser import load_dir, Node
+from sub1pkg.v2ray import to_json, PROBE_HOST, PROBE_PORT
 
 # ── 默认参数 ──────────────────────────────────────────────────────────────────
 DEFAULT_V2RAY     = shutil.which("v2ray") or "/usr/local/bin/v2ray"

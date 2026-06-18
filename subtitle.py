@@ -1,7 +1,4 @@
-# fetch_subtitles.py
-import os
 import re
-import requests
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 
@@ -16,8 +13,9 @@ def get_youtube_transcript(video_url):
     print(f"🎬 正在获取视频 ID: '{video_id}' 的中文字幕...")
 
     try:
-        # 2. 获取字幕
-        transcript_list = YouTubeTranscriptApi.get_transcript(
+        # 2. 实例化 API 对象并使用 fetch 方法获取字幕
+        ytt_api = YouTubeTranscriptApi()
+        transcript_list = ytt_api.fetch(
             video_id, 
             languages=['zh-Hans', 'zh-CN', 'zh-Hant', 'zh-TW', 'zh']
         )
@@ -34,7 +32,7 @@ def get_youtube_transcript(video_url):
 
     except Exception as e:
         print(f"\n❌ 获取字幕时出错: {e}")
-        print("💡 提示: 如果在 GitHub Actions 中运行失败，请检查是否配置了代理环境变量。")
+        print("💡 提示: 请确保安装了最新版本的 youtube-transcript-api (pip install -U youtube-transcript-api)")
 
 if __name__ == "__main__":
     url = "https://m.youtube.com/watch?v=gfd80OYwhHA"

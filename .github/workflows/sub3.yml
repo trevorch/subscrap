@@ -21,6 +21,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # ── 2. 写入 YouTube Cookies ──────────────────
+      # 将 Secret YOUTUBE_COOKIES 中的内容写成文件
+      # 如果没有配置 Secret，此步跳过（yt-dlp 将尝试无 cookies 模式）
+      - name: 写入 YouTube Cookies 文件
+        #if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        run: |
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+          echo "✅ cookies 写入 /tmp/cookies.txt（$(wc -l < /tmp/cookies.txt) 行）"
+        # 注意：不要打印 cookies 内容，防止泄露
+          
       # ── Python 环境 ───────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v6
@@ -50,6 +60,9 @@ jobs:
           SUB3_HOME: ${{ vars.SUB3_HOME }}
           SUB3_HOST: ${{ vars.SUB3_HOST }}
           SUB3_VERIFY: ${{ vars.SUB3_VERIFY }}
+          
+          HTTP_PROXY: ${{ secrets.PROXY_URL }}
+          HTTPS_PROXY: ${{ secrets.PROXY_URL }}
         run: python sub3.py
 
       - name: Push to Target Repository

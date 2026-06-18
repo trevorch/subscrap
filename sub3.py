@@ -93,6 +93,7 @@ def download_audio(video_url: str) -> str:
         "--audio-format", "mp3",
         "--audio-quality", "5",          # 适中质量，加快速度
         "--no-playlist",
+        "--cookies", "/tmp/cookies.txt",
         "-o", output_template,
         video_url,
     ]

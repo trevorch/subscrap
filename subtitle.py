@@ -49,5 +49,6 @@ def get_youtube_transcript(video_url):
         print(f"\n❌ 发生异常: {e}")
 
 if __name__ == "__main__":
-    url = "https://m.youtube.com/watch?v=gfd80OYwhHA"
+    url = "https://m.youtube.com/watch?v=Vc4v2ws7TaQ"
     get_youtube_transcript(url)
+

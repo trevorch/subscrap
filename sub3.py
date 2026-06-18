@@ -145,7 +145,7 @@ def transcribe_audio(audio_path: str) -> str:
     model = whisper.load_model("small")
     result = model.transcribe(audio_path, language="zh", fp16=False)
     text = result["text"]
-    print(f"    转录内容（前200字）：{text[:200]}")
+    print(f"    转录内容（前500字）：{text[:500]}")
     return text
 
 

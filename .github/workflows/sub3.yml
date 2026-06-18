@@ -1,11 +1,12 @@
 name: sub3搜集
 
 on:
-  # 每天北京时间 8:00 自动运行（UTC 0:00）
+  # 1. 允许手动触发（不再需要日期输入，直接抓取最新）
+  workflow_dispatch: 
+
+  # 2. 每3小时自动定时触发
   schedule:
-    - cron: '0 */1 * * *'
-  # 支持手动触发
-  workflow_dispatch:
+    - cron: '0 */1 * * *' 
 env:
   TZ: Asia/Shanghai
 

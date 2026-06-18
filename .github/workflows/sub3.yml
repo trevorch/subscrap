@@ -27,7 +27,7 @@ jobs:
       # 将 Secret YOUTUBE_COOKIES 中的内容写成文件
       # 如果没有配置 Secret，此步跳过（yt-dlp 将尝试无 cookies 模式）
       - name: 写入 YouTube Cookies 文件
-        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        #if: ${{ secrets.YOUTUBE_COOKIES != '' }}
         run: |
           echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/yt_cookies.txt
           echo "✅ cookies 写入 /tmp/yt_cookies.txt（$(wc -l < /tmp/yt_cookies.txt) 行）"

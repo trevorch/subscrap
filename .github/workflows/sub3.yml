@@ -6,7 +6,7 @@ on:
 
   # 2. 每3小时自动定时触发
   schedule:
-    - cron: '0 */1 * * *' 
+    - cron: '0 */5 * * *' 
 env:
   TZ: Asia/Shanghai
 

@@ -46,6 +46,10 @@ jobs:
 
       # ── 运行主脚本 ────────────────────────────────────
       - name: Run sub3.py
+        env:
+          SUB3_HOME: ${{ vars.SUB3_HOME }}
+          SUB3_HOST: ${{ vars.SUB3_HOST }}
+          SUB3_VERIFY: ${{ vars.SUB3_VERIFY }}
         run: python sub3.py
 
       - name: Push to Target Repository

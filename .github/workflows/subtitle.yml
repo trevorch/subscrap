@@ -2,8 +2,7 @@ name: Fetch YouTube Subtitles
 
 on:
   workflow_dispatch: # 允许在 GitHub 网页上手动点击运行
-  push:
-    branches: [ main ] # 推送到 main 分支时触发
+  
 
 jobs:
   fetch:

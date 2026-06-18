@@ -142,7 +142,7 @@ def transcribe_audio(audio_path: str) -> str:
         import whisper
 
     # 使用 base 模型，速度与准确率平衡
-    model = whisper.load_model("base")
+    model = whisper.load_model("small")
     result = model.transcribe(audio_path, language="zh", fp16=False)
     text = result["text"]
     print(f"    转录内容（前200字）：{text[:200]}")

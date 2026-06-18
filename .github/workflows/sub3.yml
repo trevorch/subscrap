@@ -8,49 +8,63 @@ on:
   workflow_dispatch:
 env:
   TZ: Asia/Shanghai
-  
+
 jobs:
-  fetch-and-commit:
+  fetch-nodes:
     runs-on: ubuntu-latest
-    timeout-minutes: 200        # Whisper 转录较慢，给足时间
+    timeout-minutes: 120
 
     permissions:
-      contents: write          # 需要写权限以提交 sub3.txt
+      contents: write
 
     steps:
       # ── 1. 检出仓库 ──────────────────────────────
       - name: 检出仓库
         uses: actions/checkout@v6
 
-      # ── 2. 配置 Python ───────────────────────────
+      # ── 2. 写入 YouTube Cookies ──────────────────
+      # 将 Secret YOUTUBE_COOKIES 中的内容写成文件
+      # 如果没有配置 Secret，此步跳过（yt-dlp 将尝试无 cookies 模式）
+      - name: 写入 YouTube Cookies 文件
+        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        run: |
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/yt_cookies.txt
+          echo "✅ cookies 写入 /tmp/yt_cookies.txt（$(wc -l < /tmp/yt_cookies.txt) 行）"
+        # 注意：不要打印 cookies 内容，防止泄露
+
+      # ── 3. 配置 Python ───────────────────────────
       - name: 配置 Python 3.11
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
 
-      # ── 3. 缓存 Whisper 模型（避免每次重新下载 ~460 MB）──
-      - name: 缓存 Whisper 模型
+      # ── 4. 缓存 Whisper 模型（~460 MB，避免每次重新下载）
+      - name: 缓存 Whisper small 模型
         uses: actions/cache@v4
         with:
           path: ~/.cache/whisper
-          key: whisper-small-model-v1
+          key: whisper-small-v1
 
-      # ── 4. 安装系统依赖 ──────────────────────────
+      # ── 5. 安装系统依赖 ──────────────────────────
       - name: 安装 ffmpeg
-        run: sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
 
-      # ── 5. 安装 Python 依赖 ──────────────────────
+      # ── 6. 安装 Python 依赖 ──────────────────────
       - name: 安装 Python 依赖
         run: pip install -r requirements.txt
 
-      # ── 6. 运行主脚本 ────────────────────────────
+      # ── 7. 运行主脚本 ────────────────────────────
       - name: 运行抓取脚本
         env:
+          YOUTUBE_COOKIES_FILE: /tmp/yt_cookies.txt
           SUB3_HOME: ${{ vars.SUB3_HOME }}
           SUB3_HOST: ${{ vars.SUB3_HOST }}
-          SUB3_VERIFY: ${{ vars.SUB3_VERIFY }}
+          SUB3_VERIFY: ${{ vars.SUB3_VERIFY }}  
         run: python sub3.py
+
 
       - name: 📦 Push to Target Repository
         run: |
@@ -80,3 +94,4 @@ jobs:
             echo "警告：未生成 sub3.txt 文件！"
             exit 1
           fi
+          

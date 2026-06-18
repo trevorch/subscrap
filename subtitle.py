@@ -13,14 +13,16 @@ def get_youtube_transcript(video_url):
     print(f"🎬 正在获取视频 ID: '{video_id}' 的中文字幕...")
 
     try:
-        # 2. 实例化 API 对象并使用 fetch 方法获取字幕
-        ytt_api = YouTubeTranscriptApi()
+        # 2. 实例化 API 对象，并传入 cookies 文件路径
+        ytt_api = YouTubeTranscriptApi(cookies="cookies.txt")
+        
+        # 3. 获取字幕
         transcript_list = ytt_api.fetch(
             video_id, 
             languages=['zh-Hans', 'zh-CN', 'zh-Hant', 'zh-TW', 'zh']
         )
         
-        # 3. 格式化并保存
+        # 4. 格式化并保存
         formatter = TextFormatter()
         text_formatted = formatter.format_transcript(transcript_list)
         
@@ -32,7 +34,6 @@ def get_youtube_transcript(video_url):
 
     except Exception as e:
         print(f"\n❌ 获取字幕时出错: {e}")
-        print("💡 提示: 请确保安装了最新版本的 youtube-transcript-api (pip install -U youtube-transcript-api)")
 
 if __name__ == "__main__":
     url = "https://m.youtube.com/watch?v=gfd80OYwhHA"

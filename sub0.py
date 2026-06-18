@@ -14,7 +14,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 SUB0_HOME = os.environ.get('SUB0_HOME')
-SUB0_HOST = os.environ.get('SUB0_HOME')
+SUB0_HOST = os.environ.get('SUB0_HOST')
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 BROWSER_HEADERS = {

@@ -151,9 +151,9 @@ def transcribe_audio(audio_path: str) -> str:
 
 def extract_code(transcript: str) -> str:
     """从文字中提取「口令xxxx」"""
-    # 匹配「口令」后跟的内容（支持全/半角，数字+字母+中文）
+    # 匹配「口令」后跟的内容（支持全/半角，数字+字母）
     patterns = [
-        r"口令[：:「『]?\s*([A-Za-z0-9\u4e00-\u9fff]{4,20})",
+        r"口令[：:「『]?\s*([A-Za-z0-9]{4,20})",
         r"([A-Za-z0-9]{6,20})\s*(?:是今日口令|为今日口令|口令)",
     ]
     for pat in patterns:

@@ -1,6 +1,6 @@
+import subprocess
 import re
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
+import os
 
 def get_youtube_transcript(video_url):
     # 1. 提取视频ID
@@ -10,30 +10,43 @@ def get_youtube_transcript(video_url):
         return
     
     video_id = video_id_match.group(1)
-    print(f"🎬 正在获取视频 ID: '{video_id}' 的中文字幕...")
+    print(f"🎬 正在使用 yt-dlp 获取视频 ID: '{video_id}' 的中文字幕...")
+
+    # 2. 构建 yt-dlp 命令
+    # --write-sub: 下载手动上传的字幕
+    # --write-auto-sub: 下载自动生成的字幕（如果手动字幕不存在）
+    # --sub-lang: 指定语言优先级
+    # --skip-download: 仅下载字幕，不下载视频和音频
+    # --cookies: 指定 Cookies 文件路径
+    # -o: 输出文件命名格式
+    cmd = [
+        "yt-dlp",
+        "--write-sub",
+        "--write-auto-sub",
+        "--sub-lang", "zh-Hans,zh-CN,zh-Hant,zh-TW,zh",
+        "--skip-download",
+        "--cookies", "cookies.txt",
+        "-o", f"{video_id}_zh.%(ext)s",
+        video_url
+    ]
 
     try:
-        # 2. 实例化 API 对象，并传入 cookies 文件路径
-        ytt_api = YouTubeTranscriptApi(cookies="cookies.txt")
+        # 3. 执行命令
+        result = subprocess.run(cmd, capture_output=True, text=True)
         
-        # 3. 获取字幕
-        transcript_list = ytt_api.fetch(
-            video_id, 
-            languages=['zh-Hans', 'zh-CN', 'zh-Hant', 'zh-TW', 'zh']
-        )
-        
-        # 4. 格式化并保存
-        formatter = TextFormatter()
-        text_formatted = formatter.format_transcript(transcript_list)
-        
-        filename = f"{video_id}_zh.txt"
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(text_formatted)
-            
-        print(f"✅ 字幕已成功保存为: {filename}")
+        if result.returncode == 0:
+            print("✅ yt-dlp 执行成功！")
+            # 检查是否生成了文件
+            if os.path.exists(f"{video_id}_zh.vtt") or os.path.exists(f"{video_id}_zh.srt"):
+                print(f"📄 字幕文件已保存在当前目录。")
+            else:
+                print("⚠️ 命令执行成功，但未找到生成的字幕文件。该视频可能确实没有中文字幕。")
+        else:
+            print(f"❌ yt-dlp 执行失败 (返回码: {result.returncode})")
+            print("错误输出:", result.stderr)
 
     except Exception as e:
-        print(f"\n❌ 获取字幕时出错: {e}")
+        print(f"\n❌ 发生异常: {e}")
 
 if __name__ == "__main__":
     url = "https://m.youtube.com/watch?v=gfd80OYwhHA"

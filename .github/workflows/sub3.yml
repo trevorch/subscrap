@@ -10,64 +10,45 @@ on:
 env:
   TZ: Asia/Shanghai
 
+
 jobs:
   fetch-and-commit:
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
-    permissions:
-      contents: write
-
     steps:
-      # ── 1. 检出仓库 ──────────────────────────────
-      - name: 检出仓库
+      # ── 检出代码 ──────────────────────────────────────
+      - name: Checkout repository
         uses: actions/checkout@v6
 
-      # ── 2. 写入 YouTube Cookies ──────────────────
-      # 将 Secret YOUTUBE_COOKIES 中的内容写成文件
-      # 如果没有配置 Secret，此步跳过（yt-dlp 将尝试无 cookies 模式）
-      - name: 写入 YouTube Cookies 文件
-        #if: ${{ secrets.YOUTUBE_COOKIES != '' }}
-        run: |
-          echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/yt_cookies.txt
-          echo "✅ cookies 写入 /tmp/yt_cookies.txt（$(wc -l < /tmp/yt_cookies.txt) 行）"
-        # 注意：不要打印 cookies 内容，防止泄露
-
-      # ── 3. 配置 Python ───────────────────────────
-      - name: 配置 Python 3.11
+      # ── Python 环境 ───────────────────────────────────
+      - name: Set up Python 3.11
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      # ── 4. 缓存 Whisper 模型（~460 MB，避免每次重新下载）
-      - name: 缓存 Whisper small 模型
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/whisper
-          key: whisper-small-v1
-
-      # ── 5. 安装系统依赖 ──────────────────────────
-      - name: 安装 ffmpeg
+      # ── 系统依赖 ──────────────────────────────────────
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
+          # ffmpeg：yt-dlp 音频转换必需
           sudo apt-get install -y ffmpeg
 
-      # ── 6. 安装 Python 依赖 ──────────────────────
-      - name: 安装 Python 依赖
-        run: pip install -r requirements.txt
+      # ── Python 依赖（预装加速后续步骤）─────────────────
+      - name: Install Python dependencies
+        run: |
+          pip install -U pip
+          pip install -U yt-dlp
+          # Whisper + PyTorch CPU-only（减小体积）
+          pip install openai-whisper
+          pip install torch torchvision torchaudio \
+            --index-url https://download.pytorch.org/whl/cpu
 
-      # ── 7. 运行主脚本 ────────────────────────────
-      - name: 运行抓取脚本
-        env:
-          YOUTUBE_COOKIES_FILE: /tmp/yt_cookies.txt
-          SUB3_HOME: ${{ vars.SUB3_HOME }}
-          SUB3_HOST: ${{ vars.SUB3_HOST }}
-          SUB3_VERIFY: ${{ vars.SUB3_VERIFY }}  
+      # ── 运行主脚本 ────────────────────────────────────
+      - name: Run sub3.py
         run: python sub3.py
 
-
-      - name: 📦 Push to Target Repository
+      - name: Push to Target Repository
         run: |
           # 1. 配置 Git 基础信息
           git config --global user.name "github-actions[bot]"
@@ -94,5 +75,4 @@ jobs:
           else
             echo "警告：未生成 sub3.txt 文件！"
             exit 1
-          fi
-          
+          fi         

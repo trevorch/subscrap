@@ -59,7 +59,7 @@ jobs:
             --index-url https://download.pytorch.org/whl/cpu
 
       # ── 运行主脚本 ────────────────────────────────────
-      - name: Run sub3.py
+      - name: Download Audio & Extract Token
         env:
           SUB3_HOME: ${{ vars.SUB3_HOME }}
           SUB3_HOST: ${{ vars.SUB3_HOST }}

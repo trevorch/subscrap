@@ -49,7 +49,7 @@ class VideoLinkParser(HTMLParser):
 
 
 def fetch_video_url(page_url: str) -> str:
-    print(f"[1/5] 正在抓取页面：{page_url}")
+    print(f"[1/5] 正在抓取页面...")
     req = urllib.request.Request(page_url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         html = resp.read().decode("utf-8", errors="replace")
@@ -67,7 +67,7 @@ def fetch_video_url(page_url: str) -> str:
     if not parser.video_url:
         raise RuntimeError("未能从页面提取到视频链接，请检查页面结构是否变化。")
 
-    print(f"    视频链接：{parser.video_url}")
+    print(f"    已取得视频链接")
     return parser.video_url
 
 
@@ -85,7 +85,7 @@ def install_yt_dlp():
 
 def download_audio(video_url: str) -> str:
     """下载音频并返回 mp3 文件路径"""
-    print(f"[3/5] 下载音频：{video_url}")
+    print(f"[3/5] 正在下载音频...")
     output_template = "audio.%(ext)s"
     cmd = [
         "yt-dlp",
@@ -195,7 +195,7 @@ def fetch_nodes(code: str) -> str:
         raise RuntimeError(f"API 返回失败：{json.dumps(data, ensure_ascii=False)}")
 
     v2ray_url = data["links"]["proxy"]["v2ray"]
-    print(f"    v2ray 订阅地址：{v2ray_url}")
+    print(f"    已取得v2ray订阅地址")
 
     # 获取订阅内容
     req2 = urllib.request.Request(v2ray_url, headers={"User-Agent": "Mozilla/5.0"})

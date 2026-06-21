@@ -9,6 +9,7 @@ import re
 import sys
 import json
 import glob
+import regex as re
 import subprocess
 import urllib.request
 import urllib.error
@@ -151,18 +152,12 @@ def transcribe_audio(audio_path: str) -> str:
 
 def extract_code(transcript: str) -> str:
     """从文字中提取「口令xxxx」"""
-    # 匹配「口令」后跟的内容（支持全/半角，数字+字母）
-    patterns = [
-        r"口令[：:「『]?\s*([A-Za-z0-9]{4,20})",
-        r"([A-Za-z0-9]{6,20})\s*(?:是今日口令|为今日口令|口令)",
-    ]
-    for pat in patterns:
-        m = re.search(pat, transcript)
-        if m:
-            code = m.group(1).strip()
-            print(f"    提取口令：{code}")
-            return code
-
+    pattern = r"(?<=口令.{0,10})[A-Za-z0-9]+"
+    matches = re.findall(pattern, transcript)
+    if matches:
+        code = max(matches, key=len)
+        print(f"    提取口令：{code}")
+        return code
     raise RuntimeError(
         f"未能从转录文字中提取口令，请检查 Whisper 输出：\n{transcript[:500]}"
     )

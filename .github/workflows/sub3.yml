@@ -54,6 +54,7 @@ jobs:
           # 3. 安装 yt-dlp 及其默认依赖组，其中包含了 yt-dlp-ejs 脚本包
           pip install -U "yt-dlp[default]"
           # Whisper + PyTorch CPU-only（减小体积）
+          pip install regex
           pip install openai-whisper
           pip install torch torchvision torchaudio \
             --index-url https://download.pytorch.org/whl/cpu

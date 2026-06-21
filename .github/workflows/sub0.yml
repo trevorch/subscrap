@@ -51,6 +51,17 @@ jobs:
           
           # 3. 检查文件是否已存在且内容相同，若不同则更新并提交
           if [ -f "../sub0.txt" ]; then
+          
+            # 新增：检查文件大小是否小于 500 字符
+            # wc -c 用于计算字节数，对于纯文本文件，可以近似看作字符数
+            file_size=$(wc -c < "../sub0.txt")
+            if [ "$file_size" -lt 500 ]; then
+              echo "警告：sub0.txt 文件内容小于 500 字符 (当前大小: $file_size)，跳过提交。目标订阅地址内容错误！"
+              exit 0 # 使用 exit 0 表示脚本正常结束，只是不满足提交条件
+            fi
+          
+          
+          
             # 比较新旧文件内容
             if ! cmp -s "sub0.txt" "../sub0.txt"; then
               echo "发现新节点内容，正在更新文件..."

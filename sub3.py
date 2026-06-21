@@ -152,7 +152,7 @@ def transcribe_audio(audio_path: str) -> str:
 
 def extract_code(transcript: str) -> str:
     """从文字中提取「口令xxxx」"""
-    pattern = r"(?<=口令.{0,10})[A-Za-z0-9]+"
+    pattern = r"(?<=口令.{0,100})[A-Za-z0-9]+"
     matches = re.findall(pattern, transcript)
     if matches:
         code = max(matches, key=len)

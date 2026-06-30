@@ -36,7 +36,6 @@ jobs:
       - name: Extract subscription
         env:
           SUB5_JSON_URL: ${{ vars.SUB5_JSON_URL }}
-          SUB5_HOST: ${{ vars.SUB5_HOST }}
         run: |
           python sub5.py
 

@@ -10,13 +10,9 @@ from urllib3.util.retry import Retry
 
 # 从环境变量获取JSON URL，方便在GitHub Actions中配置
 SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
-SUB5_HOST = os.environ.get('SUB5_HOST')
 # 完善浏览器请求头，包含 User-Agent, Referer, Accept 等
 headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Referer": SUB5_HOST,
-      "Accept": "text/html,application/xhtml+xml,application/json,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 def create_session_with_retries():
     """

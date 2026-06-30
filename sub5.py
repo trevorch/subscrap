@@ -1,42 +1,47 @@
 #!/usr/bin/env python3
-
 import os
 import requests
 import time
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
-# 从环境变量获取JSON URL，方便在GitHub Actions中配置
 SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
-# 完善浏览器请求头，包含 User-Agent, Referer, Accept 等
-headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
-def create_session_with_retries():
+def get_proxy():
     """
-    创建一个带有自动重试机制的 requests.Session 对象
+    从代理 API 获取一个 HTTP 代理
+    返回格式为 "ip:port" 的字符串，如果失败则返回 None
     """
-    session = requests.Session()
-    # 定义重试策略
-    retries = Retry(
-        total=5,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"]
-    )
-    session.mount('http://', HTTPAdapter(max_retries=retries))
-    session.mount('https://', HTTPAdapter(max_retries=retries))
-    return session
+    proxy_api = "https://proxy.scdn.io/api/get_proxy.php?protocol=http&count=1"
+    try:
+        response = requests.get(proxy_api, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("code") == 200 and data.get("data", {}).get("proxies"):
+            proxy = data["data"]["proxies"][0]
+            print(f"成功获取代理: {proxy}")
+            return proxy
+    except Exception as e:
+        print(f"获取代理失败: {e}")
+    return None
 
-def fetch_subscription(url, session):
+def fetch_subscription(url, proxy=None):
     """
     请求单个订阅链接并返回其内容
     """
     try:
+        # 伪装请求头
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
         
-        response = session.get(url, headers=headers, timeout=15)
+        # 设置代理
+        proxies = None
+        if proxy:
+            proxies = {
+                "http": f"http://{proxy}",
+                "https": f"http://{proxy}"
+            }
+        
+        response = requests.get(url, headers=headers, proxies=proxies, timeout=15)
         response.raise_for_status()
         content = response.text.strip()
         
@@ -55,16 +60,22 @@ def fetch_subscription(url, session):
         return None
 
 def main():
-    # 1. 获取当前时间戳（毫秒级）
+    # 1. 获取代理
+    proxy = get_proxy()
+    if not proxy:
+        print("警告：未能获取到代理，将尝试直接连接。")
+
+    # 2. 获取当前时间戳（毫秒级）
     timestamp = int(time.time() * 1000)
     json_url = f"{SUB5_JSON_URL}?t={timestamp}"
 
-    # 使用带有重试机制的 session
-    session = create_session_with_retries()
-
     try:
-        # 2. 获取 JSON 列表
-        response = session.get(json_url, headers=headers, timeout=10)
+        # 3. 获取 JSON 列表（使用代理）
+        proxies = None
+        if proxy:
+            proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"}
+            
+        response = requests.get(json_url, proxies=proxies, timeout=10)
         response.raise_for_status()
         data = response.json()
         subscriptions = data.get("subscriptions", [])
@@ -76,10 +87,10 @@ def main():
 
         print(f"开始获取 {len(urls)} 个订阅链接的内容...")
 
-        # 3. 并发获取每个 URL 的内容
+        # 4. 并发获取每个 URL 的内容（使用代理）
         all_contents = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = {executor.submit(fetch_subscription, url, session): url for url in urls}
+            future_to_url = {executor.submit(fetch_subscription, url, proxy): url for url in urls}
             for future in as_completed(future_to_url):
                 content = future.result()
                 if content:
@@ -89,11 +100,11 @@ def main():
             print("未获取到任何有效的订阅内容。")
             return
 
-        # 4. 将获取到的所有明文内容合并，并重新编码为 Base64
+        # 5. 将获取到的所有明文内容合并，并重新编码为 Base64
         combined_content = "\n".join(all_contents)
         encoded_content = base64.b64encode(combined_content.encode('utf-8')).decode('utf-8')
 
-        # 5. 将 Base64 字符串写入 sub5.txt
+        # 6. 将 Base64 字符串写入 sub5.txt
         with open("sub5.txt", "w", encoding="utf-8") as f:
             f.write(encoded_content)
 

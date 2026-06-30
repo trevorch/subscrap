@@ -1,10 +1,9 @@
 import asyncio
 import time
-import os
 import json
 import re
+import os
 import base64
-import requests
 from playwright.async_api import async_playwright
 SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
 async def fetch_via_proxy(page, target_url):
@@ -44,7 +43,7 @@ async def main():
         page = await context.new_page()
 
         try:
-            # 1. 使用 Playwright 获取 JSON 数据
+            # 1. 获取 JSON 数据
             body_text = await fetch_via_proxy(page, target_url)
             
             try:
@@ -59,45 +58,33 @@ async def main():
 
             print(f"获取到数据，日期: {data.get('date')}")
 
-            # 2. 遍历 subscriptions 数组，使用 requests 抓取并解码
+            # 2. 遍历 subscriptions 数组，抓取并解码内容
             subscriptions = data.get('subscriptions', [])
             all_content = []
-            
-            # 模拟浏览器请求头，防止部分订阅服务器拒绝请求
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-            }
 
             for i, sub in enumerate(subscriptions):
                 url = sub['url']
-                print(f"\n[{i+1}/{len(subscriptions)}] 正在通过 requests 访问: {url}")
+                print(f"\n[{i+1}/{len(subscriptions)}] 正在访问订阅: {url}")
                 
+                sub_text = await fetch_via_proxy(page, url)
+                
+                # 尝试进行 Base64 解码
                 try:
-                    # 使用 requests 获取内容
-                    resp = requests.get(url, headers=headers, timeout=15)
-                    resp.raise_for_status()
-                    sub_text = resp.text.strip()
-                    
-                    # 尝试进行 Base64 解码
-                    try:
-                        clean_text = sub_text.replace("\n", "").replace("\r", "").strip()
-                        decoded_content = base64.b64decode(clean_text).decode('utf-8')
-                        all_content.append(f"--- 订阅 {i+1}: {url} ---\n{decoded_content}\n")
-                        print(f"成功解码并获取内容 (长度: {len(decoded_content)})")
-                    except Exception as e:
-                        # 如果解码失败，保留原始文本
-                        print(f"Base64 解码失败: {e}，将保留原始文本")
-                        all_content.append(f"--- 订阅 {i+1}: {url} (未解码) ---\n{sub_text}\n")
-                        
-                except requests.RequestException as e:
-                    print(f"请求失败: {e}")
-                    all_content.append(f"--- 订阅 {i+1}: {url} (请求失败) ---\n\n")
+                    # 去除可能存在的换行符和空格
+                    clean_text = sub_text.replace("\n", "").replace("\r", "").strip()
+                    decoded_content = base64.b64decode(clean_text).decode('utf-8')
+                    all_content.append(f"--- 订阅 {i+1}: {url} ---\n{decoded_content}\n")
+                    print(f"成功解码并获取内容 (长度: {len(decoded_content)})")
+                except Exception as e:
+                    # 如果解码失败，保留原始文本以防数据丢失
+                    print(f"Base64 解码失败: {e}, 丢弃")
+                    #all_content.append(f"--- 订阅 {i+1}: {url} (未解码) ---\n{sub_text}\n")
 
             # 3. 写入文件 sub5.txt
             with open('sub5.txt', 'w', encoding='utf-8') as f:
                 f.write('\n'.join(all_content))
             
-            print("\n✅ 所有内容已处理并写入 sub5.txt")
+            print("\n✅ 所有内容已解码并写入 sub5.txt")
 
         except Exception as e:
             print(f"执行过程中发生错误: {e}")

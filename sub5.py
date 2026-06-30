@@ -10,24 +10,26 @@ from urllib3.util.retry import Retry
 
 # 从环境变量获取JSON URL，方便在GitHub Actions中配置
 SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
-
+SUB5_HOST = os.environ.get('SUB5_HOST')
+# 完善浏览器请求头，包含 User-Agent, Referer, Accept 等
+headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Referer": SUB5_HOST,
+      "Accept": "text/html,application/xhtml+xml,application/json,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+}
 def create_session_with_retries():
     """
     创建一个带有自动重试机制的 requests.Session 对象
     """
     session = requests.Session()
     # 定义重试策略
-    # total: 总重试次数 (包含首次请求)
-    # backoff_factor: 退避因子，用于计算重试间隔，例如 0.5s, 1s, 2s...
-    # status_forcelist: 遇到这些状态码时进行重试
-    # allowed_methods: 允许重试的HTTP方法
     retries = Retry(
         total=5,
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["HEAD", "GET", "OPTIONS"]
+        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"]
     )
-    # 将重试策略挂载到 session 的 adapter 上
     session.mount('http://', HTTPAdapter(max_retries=retries))
     session.mount('https://', HTTPAdapter(max_retries=retries))
     return session
@@ -37,10 +39,7 @@ def fetch_subscription(url, session):
     请求单个订阅链接并返回其内容
     """
     try:
-        # 伪装请求头
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        }
+        
         response = session.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         content = response.text.strip()
@@ -69,7 +68,7 @@ def main():
 
     try:
         # 2. 获取 JSON 列表
-        response = session.get(json_url, timeout=10)
+        response = session.get(json_url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         subscriptions = data.get("subscriptions", [])
@@ -83,8 +82,6 @@ def main():
 
         # 3. 并发获取每个 URL 的内容
         all_contents = []
-        # 为每个线程创建独立的 session 是个好习惯，但这里为了简化，复用一个
-        # 在生产环境中，可以考虑使用 session 池
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_url = {executor.submit(fetch_subscription, url, session): url for url in urls}
             for future in as_completed(future_to_url):

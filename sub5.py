@@ -1,51 +1,42 @@
-import asyncio
+# extract_links.py
+
+import requests
+from bs4 import BeautifulSoup
 import re
-from playwright.async_api import async_playwright
 
-async def main():
-    # 目标网址
+def main():
     url = "https://www.v2raya.net/free-nodes/free-v2ray-node-subscriptions.html"
-    # CSS 选择器
-    selector = "#free_subscription_list > ul > li"
-
-    async with async_playwright() as p:
-        # 启动浏览器 (headless=False 可以看到浏览器界面，方便调试)
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        print(f"正在访问 {url}...")
-        await page.goto(url)
-
-        # 等待元素出现，确保页面内容已加载
-        try:
-            await page.wait_for_selector(selector, timeout=10000)
-        except Exception:
-            print("未能找到指定的元素，请检查选择器或页面加载情况。")
-            await browser.close()
-            return
-
-        # 获取所有匹配的 li 元素
-        li_elements = await page.query_selector_all(selector)
-        print(f"找到 {len(li_elements)} 个列表项。")
-
-        urls = []
+    
+    try:
+        # 设置请求头，模拟浏览器访问，避免被简单的反爬虫机制拦截
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # 发送 GET 请求
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status() # 如果响应状态码不是 200，则抛出异常
+        
+        # 使用 BeautifulSoup 解析网页内容
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 根据网页结构，订阅链接位于 id 为 "free_subscription_list" 的元素下的 li 标签中
+        # 查找所有符合条件的 li 元素
+        li_elements = soup.select('#free_subscription_list ul li')
+        
+        print("提取到的订阅链接如下：")
         for li in li_elements:
-            # 获取 li 元素内的所有文本
-            text_content = await li.text_content()
-            # 使用正则表达式从文本中提取所有网址
-            found_urls = re.findall(r'https?://[^\s]+', text_content)
-            urls.extend(found_urls)
+            # 获取 li 标签内的纯文本
+            text = li.get_text(strip=True)
+            # 使用正则表达式从文本中提取以 http 或 https 开头的 URL
+            urls = re.findall(r'https?://[^\s]+', text)
+            for found_url in urls:
+                print(found_url)
+                
+    except requests.exceptions.RequestException as e:
+        print(f"网络请求错误: {e}")
+    except Exception as e:
+        print(f"发生未知错误: {e}")
 
-        await browser.close()
-
-        # 打印结果
-        if urls:
-            print("\n提取到的网址如下：")
-            for u in urls:
-                print(u)
-        else:
-            print("未在列表项中提取到任何网址。")
-
-# 运行主函数
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -26,11 +26,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install requests playwright
-
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium --with-deps
+          pip install requests BeautifulSoup
 
       - name: Fetch subscription
         env:

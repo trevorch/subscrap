@@ -1,40 +1,83 @@
-# extract_links.py
+#!/usr/bin/env python3
 
+import os
 import requests
-from bs4 import BeautifulSoup
-import re
+import time
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
+def fetch_subscription(url):
+    """
+    请求单个订阅链接并返回其内容
+    """
+    try:
+        # 伪装请求头，提高在 GitHub Actions 中的抓取成功率
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        content = response.text.strip()
+        
+        # 尝试自动解码 Base64
+        try:
+            decoded_content = base64.b64decode(content).decode('utf-8', 'ignore')
+            # 简单判断：如果解码后包含常见的协议头，说明解码成功
+            if any(protocol in decoded_content for protocol in ['vmess://', 'trojan://', 'ss://', 'vless://']):
+                return decoded_content
+        except Exception:
+            pass  # 解码失败则返回原始文本
+            
+        return content
+    except requests.exceptions.RequestException as e:
+        print(f"获取内容失败 [{url}]: {e}")
+        return None
 
 def main():
-    url = "https://www.v2raya.net/free-nodes/free-v2ray-node-subscriptions.html"
-    
+    # 1. 获取当前时间戳（毫秒级）
+    timestamp = int(time.time() * 1000)
+    json_url = f"{SUB5_JSON_URL}?t={timestamp}"
+
     try:
-        # 设置请求头，模拟浏览器访问，避免被简单的反爬虫机制拦截
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        # 发送 GET 请求
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status() # 如果响应状态码不是 200，则抛出异常
-        
-        # 使用 BeautifulSoup 解析网页内容
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 根据网页结构，订阅链接位于 id 为 "free_subscription_list" 的元素下的 li 标签中
-        # 查找所有符合条件的 li 元素
-        li_elements = soup.select('#free_subscription_list ul li')
-        
-        print("提取到的订阅链接如下：")
-        for li in li_elements:
-            # 获取 li 标签内的纯文本
-            text = li.get_text(strip=True)
-            # 使用正则表达式从文本中提取以 http 或 https 开头的 URL
-            urls = re.findall(r'https?://[^\s]+', text)
-            for found_url in urls:
-                print(found_url)
-                
+        # 2. 获取 JSON 列表
+        response = requests.get(json_url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        subscriptions = data.get("subscriptions", [])
+        urls = [item["url"] for item in subscriptions if "url" in item]
+
+        if not urls:
+            print("未获取到任何订阅链接。")
+            return
+
+        print(f"开始获取 {len(urls)} 个订阅链接的内容...")
+
+        # 3. 并发获取每个 URL 的内容
+        all_contents = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = {executor.submit(fetch_subscription, url): url for url in urls}
+            for future in as_completed(future_to_url):
+                content = future.result()
+                if content:
+                    all_contents.append(content)
+
+        if not all_contents:
+            print("未获取到任何有效的订阅内容。")
+            return
+
+        # 4. 将获取到的所有明文内容合并，并重新编码为 Base64
+        combined_content = "\n".join(all_contents)
+        encoded_content = base64.b64encode(combined_content.encode('utf-8')).decode('utf-8')
+
+        # 5. 将 Base64 字符串写入 sub5.txt
+        with open("sub5.txt", "w", encoding="utf-8") as f:
+            f.write(encoded_content)
+
+        print(f"成功获取 {len(all_contents)} 个有效订阅内容，并已重新编码为 Base64 写入 sub5.txt")
+
     except requests.exceptions.RequestException as e:
-        print(f"网络请求错误: {e}")
+        print(f"获取 JSON 列表失败: {e}")
     except Exception as e:
         print(f"发生未知错误: {e}")
 

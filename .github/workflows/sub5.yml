@@ -34,7 +34,6 @@ jobs:
           PROXY_URL="${{ vars.SUB5_PROXY }}"
           
           # 解析 Hysteria2 链接并生成 config.json
-          # 注意：这里使用 Python 解析 URL 参数，因为 bash 处理复杂 URL 容易出错
           python3 <<EOF
           import os, json, urllib.parse
           
@@ -67,8 +66,8 @@ jobs:
                       "password": password,
                       "tls": {
                         "enabled": True,
-                        "server_name": query_params.get("sni", [host])[0],
-                        "insecure": query_params.get("insecure", ["0"])[0] == "1"
+                        "server_name": query_params.get("sni", [host]),
+                        "insecure": query_params.get("insecure", ["0"]) == "1"
                       }
                     }
                   ]
@@ -84,6 +83,7 @@ jobs:
           EOF
         env:
           PROXY_URL: ${{ vars.SUB5_PROXY }}
+
 
       - name: Start Xray Proxy
         run: |

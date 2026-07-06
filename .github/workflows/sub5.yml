@@ -26,7 +26,7 @@ jobs:
           curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           sudo unzip /tmp/xray.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/xray
-          mkdir -p /usr/local/etc/xray
+          sudo mkdir -p /usr/local/etc/xray
 
       - name: Generate V2Ray/Xray Config
         run: |

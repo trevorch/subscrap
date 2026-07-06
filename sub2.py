@@ -61,7 +61,7 @@ def fetch_clash_nodes():
         
     # 使用 lambda 函数进行模糊匹配：
     # 找到所有 <p> 标签，且标签内的文本同时包含指定的开头和结尾字符串
-    target_tags = detail_soup.find_all('p', string=lambda t: t and f'{SUB2_HOME}uploads/' in t and '.txt' in t)
+    target_tags = detail_soup.find_all('p', string=lambda t: t and 'https://node.openclash.wiki/uploads/' in t and '.txt' in t)
    
     v2ray_links = []
     for tag in target_tags:

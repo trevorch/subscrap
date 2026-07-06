@@ -22,8 +22,8 @@ def fetch_clash_nodes():
     soup = BeautifulSoup(resp.text, 'html.parser')
     
     # 第二步：根据HTML结构精准定位 <a> 标签
-    # 寻找 class="list-image-box" 且 href 包含 "/free-node/" 的 a 标签
-    link_tag = soup.select_one('a.list-image-box[href*="/free-node/"]')
+    # 寻找 href 包含 "/free-node/" 的 a 标签
+    link_tag = soup.select_one('a[href*="/free-node/"]')
     
     if not link_tag:
         print("⚠️ 未在首页找到有效的免费节点链接，请检查网页结构是否发生变化。")

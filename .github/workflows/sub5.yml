@@ -19,78 +19,92 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         
-
-      - name: Install Subconverter and Xray
+      - name: Install Xray Core
         run: |
-          sudo apt-get update && sudo apt-get install -y unzip curl jq
-          # 1. 安装 Xray 核心
+          # 安装 unzip 并下载最新的 Xray (支持 Hysteria2)
+          sudo apt-get update && sudo apt-get install -y unzip curl
           curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           sudo unzip /tmp/xray.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/xray
-          
-          # 2. 安装 subconverter
-          curl -L -H "Cache-Control: no-cache" -o /tmp/subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
-          tar -xzf /tmp/subconverter.tar.gz -C /opt/
-          sudo chmod +x /opt/subconverter/subconverter
+          mkdir -p /usr/local/etc/xray
 
-      - name: Generate Xray Config via Subconverter
+      - name: Generate V2Ray/Xray Config
         run: |
+          # 从 GitHub Variables 中读取代理链接
           PROXY_URL="${{ vars.SUB5_PROXY }}"
           
-          # 启动 subconverter 后台服务
-          nohup /opt/subconverter/subconverter > /tmp/sub.log 2>&1 &
-          echo "等待 subconverter 启动..."
-          sleep 5 # 增加等待时间，确保服务就绪
+          # 解析 Hysteria2 链接并生成 config.json
+          # 注意：这里使用 Python 解析 URL 参数，因为 bash 处理复杂 URL 容易出错
+          python3 <<EOF
+          import os, json, urllib.parse
           
-          # 调用转换 API
-          curl -G "http://127.0.0.1:25500/sub" \
-            --data-urlencode "target=xray" \
-            --data-urlencode "url=$PROXY_URL" \
-            -o /tmp/xray_config_raw.json
+          proxy_url = os.environ.get("PROXY_URL", "")
+          parsed = urllib.parse.urlparse(proxy_url)
           
-          # 【核心修复】校验返回内容是否为合法的 JSON
-          if jq empty /tmp/xray_config_raw.json 2>/dev/null; then
-            echo "✅ 配置转换成功且格式合法。"
-            sudo mkdir -p /usr/local/etc/xray
-            sudo cp /tmp/xray_config_raw.json /usr/local/etc/xray/config.json
-          else
-            echo "❌ 配置转换失败或返回了非 JSON 内容！"
-            echo "--- 原始返回内容如下 ---"
-            cat /tmp/xray_config_raw.json
-            echo "------------------------"
-            echo "--- subconverter 日志 ---"
-            cat /tmp/sub.log
-            exit 1
-          fi
+          # 提取密码和主机信息
+          password = parsed.username
+          host, port = parsed.hostname, parsed.port
+          query_params = urllib.parse.parse_qs(parsed.query)
+          
+          config = {
+            "log": {"loglevel": "warning"},
+            "inbounds": [
+              {
+                "port": 10809,
+                "protocol": "http",
+                "settings": {},
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls"]}
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "hysteria2",
+                "settings": {
+                  "servers": [
+                    {
+                      "address": host,
+                      "port": port,
+                      "password": password,
+                      "tls": {
+                        "enabled": True,
+                        "server_name": query_params.get("sni", [host])[0],
+                        "insecure": query_params.get("insecure", ["0"])[0] == "1"
+                      }
+                    }
+                  ]
+                },
+                "tag": "proxy-out"
+              }
+            ]
+          }
+          
+          with open("/usr/local/etc/xray/config.json", "w") as f:
+            json.dump(config, f, indent=2)
+          print("Xray config generated successfully.")
+          EOF
         env:
           PROXY_URL: ${{ vars.SUB5_PROXY }}
 
       - name: Start Xray Proxy
         run: |
-          # 使用 xray 自带的测试命令先验证配置文件
-          if xray run -test -config /usr/local/etc/xray/config.json; then
-            echo "✅ Xray 配置文件验证通过，正在后台启动..."
-            nohup xray run -config /usr/local/etc/xray/config.json > /tmp/xray.log 2>&1 &
-            sleep 3
-            
-            if pgrep -x "xray" > /dev/null; then
-              echo "✅ Xray 启动成功，本地 HTTP 代理已就绪 (127.0.0.1:10809)"
-            else
-              echo "❌ Xray 进程意外退出。日志如下："
-              cat /tmp/xray.log
-              exit 1
-            fi
+          # 后台启动 Xray
+          nohup xray run -config /usr/local/etc/xray/config.json > /tmp/xray.log 2>&1 &
+          sleep 3
+          # 检查是否启动成功
+          if pgrep -x "xray" > /dev/null; then
+            echo "✅ Xray started successfully."
           else
-            echo "❌ Xray 配置文件验证失败！"
+            echo "❌ Xray failed to start. Logs:"
+            cat /tmp/xray.log
             exit 1
           fi
 
       - name: Test Proxy Connection
         run: |
-          echo "正在测试代理连通性..."
+          # 使用配置的代理访问外部网络进行测试
+          echo "Testing proxy connection..."
           curl -x http://127.0.0.1:10809 -I https://www.google.com
-
-
+          
       - name: Set up Python
         uses: actions/setup-python@v6
         with:

@@ -59,22 +59,22 @@ def fetch_clash_nodes():
         print("⚠️ 检测到系统错误提示，今日可能暂无更新或页面异常，程序终止。")
         return
         
-    start_tag = detail_soup.find('strong', string='v2ray订阅链接:')
-    end_tag = detail_soup.find('strong', string='clash订阅链接')
-    
-    if not start_tag or not end_tag:
-        print("未找到指定的起止标记，请检查详情页结构是否发生变化。")
-        return
-        
+    # 使用 lambda 函数进行模糊匹配：
+    # 找到所有 <p> 标签，且标签内的文本同时包含指定的开头和结尾字符串
+    target_tags = detail_soup.find_all('p', string=lambda t: t and f'{SUB2_HOME}uploads/' in t and '.txt' in t)
+   
     v2ray_links = []
-    current_element = start_tag.parent.next_sibling
-    
-    while current_element and current_element != end_tag.parent:
-        if current_element.name == 'p':
-            link_text = current_element.get_text(strip=True)
-            if link_text.startswith("http"):  
-                v2ray_links.append(link_text)
-        current_element = current_element.next_sibling
+    for tag in target_tags:
+       # 获取并清理标签内的文本内容（去除首尾空格）
+       link_text = tag.get_text(strip=True)
+       v2ray_links.append(link_text)
+   
+    # 打印结果（可选）
+    if v2ray_links:
+       print("提取到的链接:", v2ray_links)
+    else:
+       print("未找到符合条件的链接，请检查页面内容。")
+
         
     if not v2ray_links:
         print("未在指定区域内找到有效的 V2ray 链接。")

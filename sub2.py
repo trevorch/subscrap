@@ -21,18 +21,28 @@ def fetch_clash_nodes():
 
     soup = BeautifulSoup(resp.text, 'html.parser')
     
-    # 第二步：根据HTML结构精准定位 <a> 标签
-    # 寻找 href 包含 "/free-node/" 的 a 标签
-    link_tag = soup.select_one('a[href*="/free-node/"]')
-    
-    if not link_tag:
-        print("⚠️ 未在首页找到有效的免费节点链接，请检查网页结构是否发生变化。")
-        return
-        
-    # 第三步：提取相对路径并拼接为完整的绝对 URL
-    relative_href = link_tag.get('href')
-    target_url = urljoin(SUB2_HOME, relative_href)
-    print(f"✅ 成功获取到最新订阅页面：{relative_href}")
+
+    # 使用 CSS 选择器获取指定路径下的所有 a 标签
+    links = soup.select('div.panel-body > div.row > div.col-md-3 > a')
+   
+    target_href = None
+    # 遍历找到的 a 标签，寻找 title 属性包含【免费节点分享】的标签
+    for link in links:
+       # 使用 get() 方法获取 title 属性，避免属性不存在时报错
+       title = link.get('title', '')
+       if '免费节点分享' in title:
+          target_href = link.get('href')
+          break  # 找到第一个符合条件的标签后，立即退出循环
+   
+    # 打印或使用获取到的链接
+    if target_href:
+       print("获取到的链接:", target_href)
+    else:
+       print("未找到符合条件的链接")
+       return
+
+    target_url = urljoin(SUB2_HOME, target_href)
+    print(f"✅ 成功获取到最新订阅页面：{target_href}")
     
     # 第四步：访问订阅详情页并提取 V2ray 链接
     try:

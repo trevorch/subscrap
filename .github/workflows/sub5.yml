@@ -18,6 +18,68 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        
+
+      - name: Install Subconverter and Xray
+        run: |
+          sudo apt-get update && sudo apt-get install -y unzip curl
+          # 1. 安装支持多协议的 Xray 核心
+          curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          sudo unzip /tmp/xray.zip -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/xray
+          
+          # 2. 安装 subconverter (订阅转换工具)
+          curl -L -H "Cache-Control: no-cache" -o /tmp/subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
+          tar -xzf /tmp/subconverter.tar.gz -C /opt/
+          sudo chmod +x /opt/subconverter/subconverter
+
+      - name: Generate Xray Config via Subconverter
+        run: |
+          # 从 GitHub Variables 中读取动态代理链接
+          PROXY_URL="${{ vars.SUB5_PROXY }}"
+          
+          # 启动 subconverter 后台服务 (默认端口 25500)
+          nohup /opt/subconverter/subconverter > /tmp/sub.log 2>&1 &
+          sleep 3
+          
+          # 调用 subconverter API，将任意协议转换为 xray 配置
+          # target=xray 表示输出格式为 xray/v2ray 配置
+          curl -G "http://127.0.0.1:25500/sub" \
+            --data-urlencode "target=xray" \
+            --data-urlencode "url=$PROXY_URL" \
+            -o /tmp/xray_config.json
+          
+          # 检查配置文件是否生成成功
+          if [ -s /tmp/xray_config.json ]; then
+            echo "✅ 动态配置转换成功。"
+            # 将生成的配置复制到 Xray 默认路径
+            sudo mkdir -p /usr/local/etc/xray
+            sudo cp /tmp/xray_config.json /usr/local/etc/xray/config.json
+          else
+            echo "❌ 配置转换失败，请检查 SUB5_PROXY 链接格式。"
+            cat /tmp/sub.log
+            exit 1
+          fi
+
+      - name: Start Xray Proxy
+        run: |
+          # 后台启动 Xray
+          nohup xray run -config /usr/local/etc/xray/config.json > /tmp/xray.log 2>&1 &
+          sleep 3
+          # 检查进程是否存活
+          if pgrep -x "xray" > /dev/null; then
+            echo "✅ Xray 启动成功，本地 HTTP 代理已就绪 (127.0.0.1:10809)"
+          else
+            echo "❌ Xray 启动失败。日志如下："
+            cat /tmp/xray.log
+            exit 1
+          fi
+
+      - name: Test Proxy Connection
+        run: |
+          echo "正在测试代理连通性..."
+          curl -x http://127.0.0.1:10809 -I https://www.google.com
+        
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -31,6 +93,8 @@ jobs:
       - name: Fetch subscription
         env:
           SUB5_REPO: ${{ vars.SUB5_REPO }}
+          HTTP_PROXY: http://127.0.0.1:10809
+          HTTPS_PROXY: http://127.0.0.1:10809  
         run: |
           python sub5.py
 

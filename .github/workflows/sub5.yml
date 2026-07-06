@@ -58,7 +58,7 @@ jobs:
             ],
             "outbounds": [
               {
-                "protocol": "hysteria2",
+                "protocol": "vless",
                 "settings": {
                   "servers": [
                     {

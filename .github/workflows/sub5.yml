@@ -19,107 +19,108 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         
-      - name: 获取 mieru 最新版本号
-        id: mieru_release
+      - name: Install Xray Core
         run: |
-          TAG=$(curl -fsSL https://api.github.com/repos/enfein/mieru/releases/latest \
-            | grep -oP '"tag_name":\s*"\K[^"]+')
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          # 安装 unzip 并下载最新的 Xray (支持 Hysteria2)
+          sudo apt-get update && sudo apt-get install -y unzip curl
+          curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          sudo unzip /tmp/xray.zip -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/xray
+          
 
-      - name: 下载并安装 mieru 客户端 (amd64 .deb)
+      - name: Generate VLESS Reality Config
         run: |
-          VERSION=${{ steps.mieru_release.outputs.version }}
-          curl -fSsLO "https://github.com/enfein/mieru/releases/download/v${VERSION}/mieru_${VERSION}_amd64.deb"
-          sudo dpkg -i "mieru_${VERSION}_amd64.deb"
-          mieru version
-
-      - name: 解析 SUB5_PROXY 链接并生成完整客户端配置
-        env:
-          SUB5_PROXY: ${{ vars.SUB5_PROXY }}
-        run: |
-          python3 - <<'PYEOF'
-          import os, json, ipaddress
-          from urllib.parse import urlparse, parse_qs, unquote
-
-          url = os.environ["SUB5_PROXY"]
-          if not url:
-              raise SystemExit("环境变量 SUB5_PROXY 为空")
-
-          parsed = urlparse(url)
-          username = unquote(parsed.username or "")
-          password = unquote(parsed.password or "")
-          host = parsed.hostname
-
-          qs = parse_qs(parsed.query)
-          profile = unquote(qs.get("profile", ["default"])[0])
-          multiplexing = qs.get("multiplexing", ["MULTIPLEXING_LOW"])[0]
-          ports = qs.get("port", [])
-          protocols = qs.get("protocol", [])
-
-          port_bindings = []
-          for p, proto in zip(ports, protocols):
-              binding = {"protocol": proto}
-              if "-" in p:
-                  binding["portRange"] = p
-              else:
-                  binding["port"] = int(p)
-              port_bindings.append(binding)
-
-          server = {"portBindings": port_bindings}
-          try:
-              ipaddress.ip_address(host)
-              server["ipAddress"] = host
-              server["domainName"] = ""
-          except ValueError:
-              server["domainName"] = host
-              server["ipAddress"] = ""
-
+          # 在当前用户有权限的 /tmp 目录下创建 xray 配置目录
+          mkdir -p /tmp/xray
+          
+          # 从 GitHub Variables 中读取代理链接
+          PROXY_URL="${{ vars.SUB5_PROXY }}"
+          
+          # 使用 Python 解析 VLESS 链接并生成 config.json
+          python3 <<EOF
+          import os, json, urllib.parse
+          
+          proxy_url = os.environ.get("PROXY_URL", "")
+          parsed = urllib.parse.urlparse(proxy_url)
+          
+          # 提取基础信息
+          uuid = parsed.username
+          host, port = parsed.hostname, parsed.port
+          query_params = urllib.parse.parse_qs(parsed.query)
+          
+          # 构建 VLESS Reality 配置
           config = {
-              "profiles": [
-                  {
-                      "profileName": profile,
-                      "user": {"name": username, "password": password},
-                      "servers": [server],
-                      "multiplexing": {"level": multiplexing},
+            "log": {"loglevel": "warning"},
+            "inbounds": [
+              {
+                "port": 10809,
+                "protocol": "http",
+                "settings": {},
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls"]}
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "vless",
+                "settings": {
+                  "vnext": [
+                    {
+                      "address": host,
+                      "port": port,
+                      "users": [
+                        {
+                          "id": uuid,
+                          "encryption": query_params.get("encryption", ["none"])[0],
+                          "flow": query_params.get("flow", [""])[0]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "streamSettings": {
+                  "network": query_params.get("type", ["tcp"])[0],
+                  "security": query_params.get("security", ["none"])[0],
+                  "realitySettings": {
+                    "serverName": query_params.get("sni", [host])[0],
+                    "fingerprint": query_params.get("fp", ["chrome"])[0],
+                    "publicKey": query_params.get("pbk", [""])[0],
+                    "shortId": query_params.get("sid", [""])[0]
                   }
-              ],
-              "activeProfile": profile,
-              "rpcPort": 8964,
-              "socks5Port": 1080,
-              "socks5ListenLAN": False,
-              "httpProxyPort": 10809,
-              "httpProxyListenLAN": False,
-              "loggingLevel": "INFO",
+                },
+                "tag": "proxy-out"
+              }
+            ]
           }
+          
+          # 写入配置文件到 /tmp/xray/ 目录
+          with open("/tmp/xray/config.json", "w") as f:
+            json.dump(config, f, indent=2)
+          print("✅ Xray VLESS Reality config generated successfully.")
+          EOF
+        env:
+          PROXY_URL: ${{ vars.SUB5_PROXY }} 
 
-          with open("/tmp/mieru_client_config.json", "w", encoding="utf-8") as f:
-              json.dump(config, f, ensure_ascii=False, indent=2)
 
-          print(json.dumps(config, ensure_ascii=False, indent=2))
-          PYEOF
-
-      - name: 应用 mieru 客户端配置
+      - name: Start Xray Proxy
         run: |
-          mieru apply config /tmp/mieru_client_config.json
-          mieru describe config
+          # 后台启动 Xray
+          nohup xray run -config /tmp/xray/config.json > /tmp/xray.log 2>&1 &
+          sleep 3
+          # 检查是否启动成功
+          if pgrep -x "xray" > /dev/null; then
+            echo "✅ Xray started successfully."
+          else
+            echo "❌ Xray failed to start. Logs:"
+            cat /tmp/xray.log
+            exit 1
+          fi
 
-      - name: 启动 mieru 客户端
+      - name: Test Proxy Connection
         run: |
-          mieru start
-          sleep 2
-          mieru describe config
-
-      - name: 测试代理连通性（HTTP 代理端口 10809）
-        run: |
-          curl -x http://127.0.0.1:10809 -v https://www.google.com -o /dev/null
-
-      - name: (可选) 让后续步骤走这个 HTTP 代理
-        run: |
-          echo "http_proxy=http://127.0.0.1:10809" >> "$GITHUB_ENV"
-          echo "https_proxy=http://127.0.0.1:10809" >> "$GITHUB_ENV"
-          echo "HTTP_PROXY=http://127.0.0.1:10809" >> "$GITHUB_ENV"
-          echo "HTTPS_PROXY=http://127.0.0.1:10809" >> "$GITHUB_ENV"
-
+          # 使用配置的代理访问外部网络进行测试
+          echo "Testing proxy connection..."
+          curl -x http://127.0.0.1:10809 -I https://www.google.com
+          
       - name: Set up Python
         uses: actions/setup-python@v6
         with:

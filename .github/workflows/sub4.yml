@@ -1,0 +1,72 @@
+name: sub4搜集
+
+on:
+  # 手动触发工作流
+  workflow_dispatch:
+  # 或者设置定时触发，例如每天凌晨 1 点
+  schedule:
+    - cron: '*/30 * * * *'
+permissions:
+  contents: write
+  
+jobs:
+  decode-base64:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出代码到运行器
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # 2. 获取并解码内容
+      - name: Fetch and Decode Content
+        run: |
+          # 使用 curl 获取远程文件内容
+          ENCODED_CONTENT=$(curl -s https://raw.githubusercontent.com/shaoyouvip/free/refs/heads/main/base64.txt)
+          
+          # 使用 base64 命令进行解码，并将结果写入 sub4.txt 文件
+          echo "$ENCODED_CONTENT" | base64 -d > sub4.txt
+          
+          # 可选：打印前几行以确认内容
+          echo "✅ 解码完成，文件内容预览："
+          head -n 5 sub4.txt
+
+      - name: 📦 Push to Target Repository
+        run: |
+          # 1. 配置 Git 基础信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 2. 下载目标仓库
+          git clone https://${{ secrets.TARGET_REPO_TOKEN }}@github.com/trevorch/freesub.git
+          cd freesub
+          
+          # 3. 检查文件是否已存在且内容相同，若不同则更新并提交
+          if [ -f "../sub4.txt" ]; then
+          
+            # 新增：检查文件大小是否小于 500 字符
+            # wc -c 用于计算字节数，对于纯文本文件，可以近似看作字符数
+            file_size=$(wc -c < "../sub4.txt")
+            if [ "$file_size" -lt 500 ]; then
+              echo "警告：sub4.txt 文件内容小于 500 字符 (当前大小: $file_size)，跳过提交。目标订阅地址内容错误！"
+              exit 0 # 使用 exit 0 表示脚本正常结束，只是不满足提交条件
+            fi
+          
+          
+          
+            # 比较新旧文件内容
+            if ! cmp -s "sub4.txt" "../sub4.txt"; then
+              echo "发现新节点内容，正在更新文件..."
+              cp ../sub4.txt ./
+              
+              # 4. 提交更改并推送到目标仓库
+              git add sub4.txt
+              git commit -m "🎉 自动更新 Free Nodes: $(date '+%Y-%m-%d %H:%M:%S')"
+              git push origin main 
+            else
+              echo "节点内容无变化，跳过提交。"
+            fi
+          else
+            echo "警告：未生成 sub4.txt 文件！"
+            exit 1
+          fi

@@ -9,6 +9,7 @@ import re
 import sys
 import json
 import glob
+import base64
 import regex as re
 import subprocess
 import urllib.request
@@ -214,13 +215,22 @@ def main():
         audio_path = download_audio(video_url)
         transcript = transcribe_audio(audio_path)
         code = extract_code(transcript)
-        content = fetch_nodes(code)
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        print(f"\n✅ 完成！节点订阅已写入 {output_file}")
-
+        encoded_str = fetch_nodes(code)
+        
+        # 补齐 Base64 填充字符 '=' (如果缺失)
+        missing_padding = len(encoded_str) % 4
+        if missing_padding:
+           encoded_str += '=' * (4 - missing_padding)
+      
+        # 核心修改：如果解码失败，直接跳过，不写入结果列表
+        try:
+           decoded_bytes = base64.b64decode(encoded_str, validate=True)
+           decoded_str = decoded_bytes.decode('utf-8')
+           with open(output_file, "w", encoding="utf-8") as f:
+               f.write(decoded_str)
+           print(f"\n✅ 完成！节点订阅已写入 {output_file}")
+        except Exception as decode_err:
+           print(f"⚠️ 解码失败，错误原因: {decode_err}")
     except Exception as e:
         print(f"\n❌ 出错：{e}", file=sys.stderr)
         sys.exit(1)

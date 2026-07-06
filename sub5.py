@@ -2,82 +2,77 @@
 
 import os
 import requests
-import time
+import re
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SUB5_JSON_URL = os.environ.get('SUB5_JSON_URL')
-def fetch_subscription(url):
-    """
-    请求单个订阅链接并返回其内容
-    """
-    try:
-        # 伪装请求头，提高在 GitHub Actions 中的抓取成功率
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        }
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        content = response.text.strip()
-        
-        # 尝试自动解码 Base64
-        try:
-            decoded_content = base64.b64decode(content).decode('utf-8', 'ignore')
-            # 简单判断：如果解码后包含常见的协议头，说明解码成功
-            if any(protocol in decoded_content for protocol in ['vmess://', 'trojan://', 'ss://', 'vless://']):
-                return decoded_content
-        except Exception:
-            pass  # 解码失败则返回原始文本
-            
-        return content
-    except requests.exceptions.RequestException as e:
-        print(f"获取内容失败 [{url}]: {e}")
-        return None
+SUB5_REPO = os.environ.get('SUB5_REPO')
 
 def main():
-    # 1. 获取当前时间戳（毫秒级）
-    timestamp = int(time.time() * 1000)
-    json_url = f"{SUB5_JSON_URL}?t={timestamp}"
-
+    # 目标URL
+    url = f"{SUB5_REPO}/refs/heads/main/README.md"
+    
     try:
-        # 2. 获取 JSON 列表
-        response = requests.get(json_url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        subscriptions = data.get("subscriptions", [])
-        urls = [item["url"] for item in subscriptions if "url" in item]
-
-        if not urls:
-            print("未获取到任何订阅链接。")
+        # 1. 抓取文件内容
+        print(f"正在获取源文件: refs/heads/main/README.md")
+        response = requests.get(url, timeout=10)
+        response.raise_for_status() # 检查HTTP请求是否成功
+        content = response.text
+        
+        # 2. 使用正则提取以 https://fn 开头的链接
+        pattern = r'https://fn[^\s`)]+'
+        links = re.findall(pattern, content)
+        
+        if not links:
+            print("未找到以 'https://fn' 开头的链接。")
             return
 
-        print(f"开始获取 {len(urls)} 个订阅链接的内容...")
+        print(f"找到 {len(links)} 个链接，开始处理...")
 
-        # 3. 并发获取每个 URL 的内容
-        all_contents = []
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = {executor.submit(fetch_subscription, url): url for url in urls}
-            for future in as_completed(future_to_url):
-                content = future.result()
-                if content:
-                    all_contents.append(content)
+        decoded_results = []
 
-        if not all_contents:
-            print("未获取到任何有效的订阅内容。")
-            return
+        # 3. 遍历链接并处理
+        for link in links:
+            try:
+                # 访问链接内容
+                node_response = requests.get(link, timeout=10)
+                node_response.raise_for_status()
+                
+                # 获取内容并尝试 Base64 解码
+                encoded_str = node_response.text.strip()
+                
+                # 补齐 Base64 填充字符 '=' (如果缺失)
+                missing_padding = len(encoded_str) % 4
+                if missing_padding:
+                    encoded_str += '=' * (4 - missing_padding)
+                
+                # 核心修改：如果解码失败，直接跳过，不写入结果列表
+                try:
+                    decoded_bytes = base64.b64decode(encoded_str, validate=True)
+                    decoded_str = decoded_bytes.decode('utf-8')
+                except Exception as decode_err:
+                    print(f"⚠️ 解码失败，已跳过: {link} | 错误原因: {decode_err}")
+                    continue  # 解码失败，跳过当前循环，不加入 decoded_results
+                
+                # 只有成功解码的内容才会被加入列表
+                decoded_results.append(decoded_str)
+                print(f"✅ 成功解码: {link}")
+                
+            except requests.exceptions.RequestException as req_err:
+                print(f"❌ 网络请求失败，已跳过: {link} | 错误原因: {req_err}")
+            except Exception as e:
+                print(f"❌ 处理过程中发生未知错误，已跳过: {link} | 错误原因: {e}")
 
-        # 4. 将获取到的所有明文内容合并，并重新编码为 Base64
-        combined_content = "\n".join(all_contents)
-        encoded_content = base64.b64encode(combined_content.encode('utf-8')).decode('utf-8')
-
-        # 5. 将 Base64 字符串写入 sub5.txt
-        with open("sub5.txt", "w", encoding="utf-8") as f:
-            f.write(encoded_content)
-
-        print(f"成功获取 {len(all_contents)} 个有效订阅内容，并已重新编码为 Base64 写入 sub5.txt")
+        # 4. 写入文件
+        if decoded_results:
+            output_file = "sub5.txt"
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(decoded_results))
+            print(f"\n所有操作完成，成功解码 {len(decoded_results)} 条数据，已写入 {output_file}")
+        else:
+            print("\n没有成功解码的数据，未生成文件。")
 
     except requests.exceptions.RequestException as e:
-        print(f"获取 JSON 列表失败: {e}")
+        print(f"网络请求错误: {e}")
     except Exception as e:
         print(f"发生未知错误: {e}")
 

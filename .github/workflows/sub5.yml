@@ -2,7 +2,7 @@ name: sub5搜集
 
 on:
   schedule:
-    - cron: "0 */1 * * *"   # 每6小时自动运行一次（UTC），北京时间 02/08/14/20 点
+    - cron: "*/30 * * * *"   # 每30分钟自动运行一次（UTC），北京时间 02/08/14/20 点
   workflow_dispatch:          # 支持手动触发
 
 permissions:
@@ -26,11 +26,11 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install requests beautifulsoup4
+          pip install requests
 
       - name: Fetch subscription
         env:
-          SUB5_JSON_URL: ${{ vars.SUB5_JSON_URL }}
+          SUB5_REPO: ${{ vars.SUB5_REPO }}
         run: |
           python sub5.py
 

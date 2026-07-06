@@ -26,9 +26,9 @@ jobs:
           curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           sudo unzip /tmp/xray.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/xray
-          mkdir -p /tmp/xray
+          
 
-      - name: Generate V2Ray/Xray Config
+      - name: Generate VLESS Reality Config
         run: |
           # 在当前用户有权限的 /tmp 目录下创建 xray 配置目录
           mkdir -p /tmp/xray
@@ -36,16 +36,19 @@ jobs:
           # 从 GitHub Variables 中读取代理链接
           PROXY_URL="${{ vars.SUB5_PROXY }}"
           
+          # 使用 Python 解析 VLESS 链接并生成 config.json
           python3 <<EOF
           import os, json, urllib.parse
           
           proxy_url = os.environ.get("PROXY_URL", "")
           parsed = urllib.parse.urlparse(proxy_url)
           
-          password = parsed.username
+          # 提取基础信息
+          uuid = parsed.username
           host, port = parsed.hostname, parsed.port
           query_params = urllib.parse.parse_qs(parsed.query)
           
+          # 构建 VLESS Reality 配置
           config = {
             "log": {"loglevel": "warning"},
             "inbounds": [
@@ -60,32 +63,42 @@ jobs:
               {
                 "protocol": "vless",
                 "settings": {
-                  "servers": [
+                  "vnext": [
                     {
                       "address": host,
                       "port": port,
-                      "password": password,
-                      "tls": {
-                        "enabled": True,
-                        "server_name": query_params.get("sni", [host])[0],
-                        "insecure": query_params.get("insecure", ["0"])[0] == "1"
-                      }
+                      "users": [
+                        {
+                          "id": uuid,
+                          "encryption": query_params.get("encryption", ["none"])[0],
+                          "flow": query_params.get("flow", [""])[0]
+                        }
+                      ]
                     }
                   ]
+                },
+                "streamSettings": {
+                  "network": query_params.get("type", ["tcp"])[0],
+                  "security": query_params.get("security", ["none"])[0],
+                  "realitySettings": {
+                    "serverName": query_params.get("sni", [host])[0],
+                    "fingerprint": query_params.get("fp", ["chrome"])[0],
+                    "publicKey": query_params.get("pbk", [""])[0],
+                    "shortId": query_params.get("sid", [""])[0]
+                  }
                 },
                 "tag": "proxy-out"
               }
             ]
           }
           
-          # 修改写入路径为 /tmp/xray/config.json
+          # 写入配置文件到 /tmp/xray/ 目录
           with open("/tmp/xray/config.json", "w") as f:
             json.dump(config, f, indent=2)
-          print("Xray config generated successfully.")
+          print("✅ Xray VLESS Reality config generated successfully.")
           EOF
         env:
-          PROXY_URL: ${{ vars.SUB5_PROXY }}
-
+          PROXY_URL: ${{ vars.SUB5_PROXY }} 
 
 
       - name: Start Xray Proxy

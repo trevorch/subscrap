@@ -33,31 +33,74 @@ jobs:
           sudo dpkg -i "mieru_${VERSION}_amd64.deb"
           mieru version
 
-      - name: 写入基础客户端配置（含 HTTP/HTTPS 代理端口 10809）
-        run: |
-          cat > /tmp/mieru_base.json <<'EOF'
-          {
-            "rpcPort": 8964,
-            "socks5Port": 1080,
-            "socks5ListenLAN": false,
-            "httpProxyPort": 10809,
-            "httpProxyListenLAN": false,
-            "loggingLevel": "INFO"
-          }
-          EOF
-          mieru apply config /tmp/mieru_base.json
-          # 简单分享链接(mierus://)不含 socks5Port/httpProxyPort 等本地端口信息，
-          # 必须先写好基础配置，再 import 服务器信息，否则全新设备上 import 会失败
-
-      - name: 从仓库变量导入代理配置
+      - name: 解析 SUB5_PROXY 链接并生成完整客户端配置
         env:
           SUB5_PROXY: ${{ vars.SUB5_PROXY }}
         run: |
-          if [ -z "$SUB5_PROXY" ]; then
-            echo "::error::仓库变量 SUB5_PROXY 未设置"
-            exit 1
-          fi
-          mieru import config "$SUB5_PROXY"
+          python3 - <<'PYEOF'
+          import os, json, ipaddress
+          from urllib.parse import urlparse, parse_qs, unquote
+
+          url = os.environ["SUB5_PROXY"]
+          if not url:
+              raise SystemExit("环境变量 SUB5_PROXY 为空")
+
+          parsed = urlparse(url)
+          username = unquote(parsed.username or "")
+          password = unquote(parsed.password or "")
+          host = parsed.hostname
+
+          qs = parse_qs(parsed.query)
+          profile = unquote(qs.get("profile", ["default"])[0])
+          multiplexing = qs.get("multiplexing", ["MULTIPLEXING_LOW"])[0]
+          ports = qs.get("port", [])
+          protocols = qs.get("protocol", [])
+
+          port_bindings = []
+          for p, proto in zip(ports, protocols):
+              binding = {"protocol": proto}
+              if "-" in p:
+                  binding["portRange"] = p
+              else:
+                  binding["port"] = int(p)
+              port_bindings.append(binding)
+
+          server = {"portBindings": port_bindings}
+          try:
+              ipaddress.ip_address(host)
+              server["ipAddress"] = host
+              server["domainName"] = ""
+          except ValueError:
+              server["domainName"] = host
+              server["ipAddress"] = ""
+
+          config = {
+              "profiles": [
+                  {
+                      "profileName": profile,
+                      "user": {"name": username, "password": password},
+                      "servers": [server],
+                      "multiplexing": {"level": multiplexing},
+                  }
+              ],
+              "activeProfile": profile,
+              "rpcPort": 8964,
+              "socks5Port": 1080,
+              "socks5ListenLAN": False,
+              "httpProxyPort": 10809,
+              "httpProxyListenLAN": False,
+              "loggingLevel": "INFO",
+          }
+
+          with open("/tmp/mieru_client_config.json", "w", encoding="utf-8") as f:
+              json.dump(config, f, ensure_ascii=False, indent=2)
+
+          print(json.dumps(config, ensure_ascii=False, indent=2))
+          PYEOF
+
+      - name: 应用 mieru 客户端配置
+        run: |
+          mieru apply config /tmp/mieru_client_config.json
           mieru describe config
 
       - name: 启动 mieru 客户端
@@ -66,19 +109,16 @@ jobs:
           sleep 2
           mieru describe config
 
-      - name: 测试代理连通性（HTTP 代理）
+      - name: 测试代理连通性（HTTP 代理端口 10809）
         run: |
           curl -x http://127.0.0.1:10809 -v https://www.google.com -o /dev/null
-          # 也可以用 mieru 自带的测试命令测 SOCKS5 通道：
-          # mieru test https://www.google.com
 
       - name: (可选) 让后续步骤走这个 HTTP 代理
         run: |
           echo "http_proxy=http://127.0.0.1:10809" >> "$GITHUB_ENV"
           echo "https_proxy=http://127.0.0.1:10809" >> "$GITHUB_ENV"
           echo "HTTP_PROXY=http://127.0.0.1:10809" >> "$GITHUB_ENV"
-          echo "HTTPS_PROXY=http://127.0.0.1:10809" >> "$GITHUB_ENV"   
-   
+          echo "HTTPS_PROXY=http://127.0.0.1:10809" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v6

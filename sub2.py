@@ -32,7 +32,7 @@ def fetch_clash_nodes():
     # 第三步：提取相对路径并拼接为完整的绝对 URL
     relative_href = link_tag.get('href')
     target_url = urljoin(SUB2_HOME, relative_href)
-    print(f"✅ 成功获取到最新订阅页面")
+    print(f"✅ 成功获取到最新订阅页面：{relative_href}")
     
     # 第四步：访问订阅详情页并提取 V2ray 链接
     try:

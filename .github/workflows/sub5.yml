@@ -26,21 +26,22 @@ jobs:
           curl -L -H "Cache-Control: no-cache" -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           sudo unzip /tmp/xray.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/xray
-          sudo mkdir -p /usr/local/etc/xray
+          sudo mkdir -p /tmp/xray
 
       - name: Generate V2Ray/Xray Config
         run: |
+          # 在当前用户有权限的 /tmp 目录下创建 xray 配置目录
+          mkdir -p /tmp/xray
+          
           # 从 GitHub Variables 中读取代理链接
           PROXY_URL="${{ vars.SUB5_PROXY }}"
           
-          # 解析 Hysteria2 链接并生成 config.json
           python3 <<EOF
           import os, json, urllib.parse
           
           proxy_url = os.environ.get("PROXY_URL", "")
           parsed = urllib.parse.urlparse(proxy_url)
           
-          # 提取密码和主机信息
           password = parsed.username
           host, port = parsed.hostname, parsed.port
           query_params = urllib.parse.parse_qs(parsed.query)
@@ -66,8 +67,8 @@ jobs:
                       "password": password,
                       "tls": {
                         "enabled": True,
-                        "server_name": query_params.get("sni", [host]),
-                        "insecure": query_params.get("insecure", ["0"]) == "1"
+                        "server_name": query_params.get("sni", [host])[0],
+                        "insecure": query_params.get("insecure", ["0"])[0] == "1"
                       }
                     }
                   ]
@@ -77,7 +78,8 @@ jobs:
             ]
           }
           
-          with open("/usr/local/etc/xray/config.json", "w") as f:
+          # 修改写入路径为 /tmp/xray/config.json
+          with open("/tmp/xray/config.json", "w") as f:
             json.dump(config, f, indent=2)
           print("Xray config generated successfully.")
           EOF
@@ -85,10 +87,11 @@ jobs:
           PROXY_URL: ${{ vars.SUB5_PROXY }}
 
 
+
       - name: Start Xray Proxy
         run: |
           # 后台启动 Xray
-          nohup xray run -config /usr/local/etc/xray/config.json > /tmp/xray.log 2>&1 &
+          nohup xray run -config /tmp/xray/config.json > /tmp/xray.log 2>&1 &
           sleep 3
           # 检查是否启动成功
           if pgrep -x "xray" > /dev/null; then

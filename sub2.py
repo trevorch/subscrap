@@ -1,5 +1,6 @@
 import os
 import requests
+import base64
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -88,14 +89,26 @@ def fetch_clash_nodes():
             try:
                 sub_resp = requests.get(link, headers=HEADERS, timeout=15)
                 sub_resp.raise_for_status()
-                content = sub_resp.text.strip()
+                encoded_str = sub_resp.text.strip()
                 
-                if content:
-                    f.write(content + "\n")  
-                    success_count += 1
-                    print(f"   ✔️ 成功写入")
-                else:
-                    print(f"   ⚠️ 内容为空")
+                # 补齐 Base64 填充字符 '=' (如果缺失)
+                missing_padding = len(encoded_str) % 4
+                if missing_padding:
+                    encoded_str += '=' * (4 - missing_padding)
+                
+                # 核心修改：如果解码失败，直接跳过，不写入结果列表
+                try:
+                    decoded_bytes = base64.b64decode(encoded_str, validate=True)
+                    decoded_str = decoded_bytes.decode('utf-8')
+                    if decoded_str
+                       f.write(decoded_str + "\n")  
+                       success_count += 1
+                       print(f"   ✔️ 成功写入")
+                    else:
+                       print(f"   ⚠️ 内容为空")
+                except Exception as decode_err:
+                    print(f"⚠️ 解码失败，已跳过: {link} | 错误原因: {decode_err}")
+                    continue  # 解码失败，跳过当前循环，不加入 decoded_results
                     
             except Exception as e:
                 print(f"   ❌ 抓取失败: {e}")

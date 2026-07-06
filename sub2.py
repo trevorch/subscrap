@@ -100,7 +100,7 @@ def fetch_clash_nodes():
                 try:
                     decoded_bytes = base64.b64decode(encoded_str, validate=True)
                     decoded_str = decoded_bytes.decode('utf-8')
-                    if decoded_str
+                    if decoded_str:
                        f.write(decoded_str + "\n")  
                        success_count += 1
                        print(f"   ✔️ 成功写入")

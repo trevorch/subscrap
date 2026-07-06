@@ -165,11 +165,9 @@ jobs:
             if ! cmp -s "sub5.txt" "../sub5.txt"; then
               echo "发现新节点内容，正在更新文件..."
               cp ../sub5.txt ./
-              mkdir -p sub5
-              cp ../sub5/* sub5
               
               # 4. 提交更改并推送到目标仓库
-              git add sub5.txt sub5
+              git add sub5.txt
               git commit -m "🎉 自动更新 Free Nodes: $(date '+%Y-%m-%d %H:%M:%S')"
               git push origin main 
             else

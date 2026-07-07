@@ -5,31 +5,35 @@ on:
   workflow_dispatch:
   # 或者设置定时触发，例如每天凌晨 1 点
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/10 * * * *'
 permissions:
   contents: write
   
 jobs:
-  decode-base64:
+  fetch-and-commit:
     runs-on: ubuntu-latest
 
     steps:
       # 1. 检出代码到运行器
       - name: Checkout repository
         uses: actions/checkout@v6
+          
+      # ── Python 环境 ───────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          
+      # ── Python 依赖（预装加速后续步骤）─────────────────
+      - name: Install Python dependencies
+        run: |
+          pip install -U pip
+          pip install requests pyyaml
 
-      # 2. 获取并解码内容
+      # ── 运行主脚本 ────────────────────────────────────
       - name: Fetch and Decode Content
         run: |
-          # 使用 curl 获取远程文件内容
-          ENCODED_CONTENT=$(curl -s https://raw.githubusercontent.com/shaoyouvip/free/refs/heads/main/base64.txt)
-          
-          # 使用 base64 命令进行解码，并将结果写入 sub4.txt 文件
-          echo "$ENCODED_CONTENT" | base64 -d > sub4.txt
-          
-          # 可选：打印前几行以确认内容
-          echo "✅ 解码完成，文件内容预览："
-          head -n 5 sub4.txt
+          python sub4.py -o sub4.txt
 
       - name: 📦 Push to Target Repository
         run: |

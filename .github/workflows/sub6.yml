@@ -30,7 +30,7 @@ jobs:
 
       - name: Fetch subscription
         env:
-          SUB6_LINKS: ${{ secrets.SUB6_LINKS }} 
+          SUB6_LINKS: ${{ vars.SUB6_LINKS }} 
         run: |
           python sub6.py
 

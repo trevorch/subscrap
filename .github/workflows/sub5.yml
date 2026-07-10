@@ -19,12 +19,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          pip install requests  
+        
       - name: Extract test link from README
         id: extract_link
         env:
            SUB5_REPO: ${{ vars.SUB5_REPO }}
         run: |
-           pip install requests --quiet
            python3 <<EOF
            import os
            import re
@@ -164,16 +172,6 @@ jobs:
         run: |
           echo "Testing proxy connection..."
           curl -x http://127.0.0.1:10809 -I "${{ steps.extract_link.outputs.target_url }}"
-    
-          
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install Python dependencies
-        run: |
-          pip install requests
 
       - name: Fetch subscription
         env:

@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 
 import requests
 
+SUB7_REPO = os.environ.get('SUB7_REPO')
+
 README_URL = f"{SUB7_REPO}/refs/heads/main/README.md"
 DNS_API = "https://zhanchacha.cn/api/dns/host2ip/"
 OUTPUT_FILE = "sub7.txt"

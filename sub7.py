@@ -87,7 +87,7 @@ def fetch_content(new_link: str, host: str, ip: str) -> str:
     同时保留原域名用于 SNI/Host，避免直接用 ip 拼接 URL 导致的 SNI 失配问题。
     """
     try:
-        resp = requests.get(new_link, timeout=15)
+        resp = requests.get(new_link, timeout=15, verify=False)
         return resp.text
     except Exception as e:
         print(f"[错误] 访问 {new_link} 时发生异常: {e}", file=sys.stderr)

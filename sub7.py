@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 import requests
 
 SUB7_REPO = os.environ.get('SUB7_REPO')
+SUB7_REPLACE_IP = os.environ.get('SUB7_REPLACE_IP')
 
 README_URL = f"{SUB7_REPO}/refs/heads/main/README.md"
 DNS_API = "https://zhanchacha.cn/api/dns/host2ip/"
@@ -52,22 +53,6 @@ def extract_fn_links(content: str):
     return result
 
 
-def query_ip(host: str) -> str:
-    """调用 DNS 查询接口获取域名对应的 IP"""
-    try:
-        resp = requests.get(DNS_API, params={"host": host}, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("status") == 1:
-            ip = data.get("data", {}).get("ip")
-            if ip:
-                return ip
-        print(f"[警告] 查询 {host} 的 IP 失败，返回数据: {data}", file=sys.stderr)
-    except Exception as e:
-        print(f"[错误] 查询 {host} 的 IP 时发生异常: {e}", file=sys.stderr)
-    return None
-
-
 def replace_host_with_ip(link: str, ip: str) -> str:
     """用 IP 替换链接中的域名部分"""
     parsed = urlparse(link)
@@ -75,28 +60,6 @@ def replace_host_with_ip(link: str, ip: str) -> str:
     new_netloc = parsed.netloc.replace(host, ip)
     new_link = link.replace(parsed.netloc, new_netloc, 1)
     return new_link
-
-
-@contextmanager
-def override_dns(hostname: str, ip: str):
-    """
-    临时劫持 DNS 解析：让 hostname 在本次请求中直接解析到指定 ip。
-    这样可以保证 TLS 握手时的 SNI 以及 HTTP 的 Host 头都仍然是原始域名
-    （从而通过服务器/CDN 的证书校验和路由判断），但底层 TCP 连接
-    实际连接的是查询到的 ip —— 效果上等价于"用 ip 替换域名后访问"。
-    """
-    original_getaddrinfo = socket.getaddrinfo
-
-    def patched_getaddrinfo(host, *args, **kwargs):
-        if host == hostname:
-            return original_getaddrinfo(ip, *args, **kwargs)
-        return original_getaddrinfo(host, *args, **kwargs)
-
-    socket.getaddrinfo = patched_getaddrinfo
-    try:
-        yield
-    finally:
-        socket.getaddrinfo = original_getaddrinfo
 
 
 def decode_base64_content(text: str) -> str:
@@ -124,9 +87,7 @@ def fetch_content(original_link: str, host: str, ip: str) -> str:
     同时保留原域名用于 SNI/Host，避免直接用 ip 拼接 URL 导致的 SNI 失配问题。
     """
     try:
-        with override_dns(host, ip):
-            resp = requests.get(original_link, timeout=15)
-        resp.raise_for_status()
+        resp = requests.get(original_link, timeout=15)
         return resp.text
     except Exception as e:
         print(f"[错误] 访问 {original_link} (强制解析到 {ip}) 时发生异常: {e}", file=sys.stderr)
@@ -146,18 +107,12 @@ def main():
     for link in links:
         parsed = urlparse(link)
         host = parsed.hostname
-        print(f"\n正在查询域名 {host} 的 IP...")
-        ip = query_ip(host)
-        if not ip:
-            print(f"[跳过] 无法获取 {host} 的 IP，跳过该链接")
-            continue
-        print(f"  {host} -> {ip}")
-
-        new_link = replace_host_with_ip(link, ip)
+        
+        new_link = replace_host_with_ip(link, SUB7_REPLACE_IP)
         print(f"  新链接: {new_link}")
 
         print(f"正在访问新链接...")
-        body = fetch_content(link, host, ip)
+        body = fetch_content(link, host, SUB7_REPLACE_IP)
         if body is None:
             print(f"[跳过] 访问 {new_link} 失败")
             continue

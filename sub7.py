@@ -20,6 +20,11 @@ from contextlib import contextmanager
 from urllib.parse import urlparse
 
 import requests
+import urllib3
+
+# 禁用 SSL 警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 SUB7_REPO = os.environ.get('SUB7_REPO')
 SUB7_REPLACE_IP = os.environ.get('SUB7_REPLACE_IP')

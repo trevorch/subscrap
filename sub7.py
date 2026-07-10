@@ -124,7 +124,7 @@ def main():
 
         decoded_body = decode_base64_content(body)
 
-        results.append(f"# 原链接: {link}\n# 新链接: {new_link}\n{decoded_body}\n")
+        results.append(f"{decoded_body}\n")
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(results))

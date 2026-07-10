@@ -25,7 +25,7 @@ jobs:
            SUB5_REPO: ${{ vars.SUB5_REPO }}
         run: |
            pip install requests --quiet
-           python3 << 'EOF'
+           python3 <<EOF
            import os
            import re
            import requests

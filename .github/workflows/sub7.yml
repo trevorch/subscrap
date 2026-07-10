@@ -1,0 +1,75 @@
+name: sub7搜集
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # 每30分钟自动运行一次（UTC），北京时间 02/08/14/20 点
+  workflow_dispatch:          # 支持手动触发
+
+permissions:
+  contents: write             # 允许 push 文件到仓库
+env:
+  TZ: Asia/Shanghai
+  
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          pip install requests  
+        
+      - name: Fetch subscription
+        env:
+          SUB7_REPO: ${{ vars.SUB5_REPO }}
+        run: |
+          python sub7.py
+
+      - name: 📦 Push to Target Repository
+        run: |
+          # 1. 配置 Git 基础信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 2. 下载目标仓库
+          git clone https://${{ secrets.TARGET_REPO_TOKEN }}@github.com/trevorch/freesub.git
+          cd freesub
+          
+          # 3. 检查文件是否已存在且内容相同，若不同则更新并提交
+          if [ -f "../sub7.txt" ]; then
+          
+            # 新增：检查文件大小是否小于 500 字符
+            # wc -c 用于计算字节数，对于纯文本文件，可以近似看作字符数
+            file_size=$(wc -c < "../sub7.txt")
+            if [ "$file_size" -lt 500 ]; then
+              echo "警告：sub7.txt 文件内容小于 500 字符 (当前大小: $file_size)，跳过提交。目标订阅地址内容错误！"
+              exit 0 # 使用 exit 0 表示脚本正常结束，只是不满足提交条件
+            fi
+          
+          
+          
+            # 比较新旧文件内容
+            if ! cmp -s "sub7.txt" "../sub7.txt"; then
+              echo "发现新节点内容，正在更新文件..."
+              cp ../sub7.txt ./
+              
+              # 4. 提交更改并推送到目标仓库
+              git add sub7.txt
+              git commit -m "🎉 自动更新 Free Nodes: $(date '+%Y-%m-%d %H:%M:%S')"
+              git push origin main 
+            else
+              echo "节点内容无变化，跳过提交。"
+            fi
+          else
+            echo "警告：未生成 sub7.txt 文件！"
+            exit 1
+          fi

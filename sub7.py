@@ -81,16 +81,16 @@ def decode_base64_content(text: str) -> str:
         return text
 
 
-def fetch_content(original_link: str, host: str, ip: str) -> str:
+def fetch_content(new_link: str, host: str, ip: str) -> str:
     """
     访问链接对应的内容。通过 DNS 劫持强制连接到指定 ip，
     同时保留原域名用于 SNI/Host，避免直接用 ip 拼接 URL 导致的 SNI 失配问题。
     """
     try:
-        resp = requests.get(original_link, timeout=15)
+        resp = requests.get(new_link, timeout=15)
         return resp.text
     except Exception as e:
-        print(f"[错误] 访问 {original_link} (强制解析到 {ip}) 时发生异常: {e}", file=sys.stderr)
+        print(f"[错误] 访问 {new_link} 时发生异常: {e}", file=sys.stderr)
         return None
 
 
@@ -112,7 +112,7 @@ def main():
         print(f"  新链接: {new_link}")
 
         print(f"正在访问新链接...")
-        body = fetch_content(link, host, SUB7_REPLACE_IP)
+        body = fetch_content(new_link, host, SUB7_REPLACE_IP)
         if body is None:
             print(f"[跳过] 访问 {new_link} 失败")
             continue

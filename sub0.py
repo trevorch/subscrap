@@ -8,6 +8,7 @@
 
 import sys
 import os
+import base64
 import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -106,10 +107,22 @@ def fetch_subscription(sub_url: str) -> str:
 def save_files(content: str) -> None:
     now_cst = datetime.now(BEIJING_TZ)
     date_str = now_cst.strftime("%Y%m%d")
+    
+    
+        # 对 content 进行 Base64 解码
+    try:
+        # base64.b64decode 返回的是 bytes，需要解码为 utf-8 字符串
+        decoded_content = base64.b64decode(content).decode('utf-8')
+        print("[+] Base64 解码成功")
+    except Exception as e:
+        # 如果解码失败，打印警告并保留原始内容，防止程序崩溃
+        print(f"[!] Base64 解码失败: {e}，将写入原始内容。")
+        decoded_content = content
+    
 
     # sub0.txt（始终覆盖为最新）
     flat = Path("sub0.txt")
-    flat.write_text(content, encoding="utf-8")
+    flat.write_text(decoded_content, encoding="utf-8")
     print(f"[+] 已写入: {flat}")
 
     # sub0/yyyymmdd.txt

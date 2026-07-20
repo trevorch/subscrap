@@ -220,20 +220,29 @@ def main():
         # 补齐 Base64 填充字符 '=' (如果缺失)
         missing_padding = len(encoded_str) % 4
         if missing_padding:
-           encoded_str += '=' * (4 - missing_padding)
+            encoded_str += '=' * (4 - missing_padding)
       
-        # 核心修改：如果解码失败，直接跳过，不写入结果列表
+        # 尝试解码并写入
         try:
-           decoded_bytes = base64.b64decode(encoded_str, validate=True)
-           decoded_str = decoded_bytes.decode('utf-8')
-           with open(output_file, "w", encoding="utf-8") as f:
-               f.write(decoded_str)
-           print(f"\n✅ 完成！节点订阅已写入 {output_file}")
+            decoded_bytes = base64.b64decode(encoded_str, validate=True)
+            decoded_str = decoded_bytes.decode('utf-8')
+            content_to_write = decoded_str
+            print("✅ Base64 解码成功！")
         except Exception as decode_err:
-           print(f"⚠️ 解码失败，错误原因: {decode_err}")
+            # 核心修改：解码失败时，打印警告并写入原始内容
+            print(f"⚠️ 解码失败，错误原因: {decode_err}")
+            print("🔄 将写入原始 Base64 内容...")
+            content_to_write = encoded_str
+
+        # 统一写入文件
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(content_to_write)
+        print(f"\n✅ 完成！内容已写入 {output_file}")
+
     except Exception as e:
         print(f"\n❌ 出错：{e}", file=sys.stderr)
         sys.exit(1)
+
 
 
 if __name__ == "__main__":
